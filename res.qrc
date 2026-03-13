@@ -1,0 +1,18 @@
+<RCC>
+    <qresource prefix="/">
+        <file>res/list play.png</file>
+        <file>res/list.png</file>
+        <file>res/loop play.png</file>
+        <file>res/next song.png</file>
+        <file>res/play order.png</file>
+        <file>res/play.png</file>
+        <file>res/playlist.png</file>
+        <file>res/prev song.png</file>
+        <file>res/repeat play.png</file>
+        <file>res/shuffle play.png</file>
+        <file>res/stop.png</file>
+        <file>res/background.png</file>
+        <file>res/background_fade.png</file>
+        <file>res/misaka.png</file>
+    </qresource>
+</RCC>
