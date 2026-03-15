@@ -34,7 +34,7 @@ MusicPlaylist::~MusicPlaylist()
 
 void MusicPlaylist::AppendMusic(QPixmap pix, QUrl url, QString name, QString artist)
 {
-    SongUnit *unit = new SongUnit(pix, url, name, artist, this);
+    SongUnit *unit = new SongUnit(m_musiclist.size(), pix, url, name, artist, this);
     // 添加到布局（插入到弹簧之前）
     if (m_layout->count() > 0) {
         // 如果布局中有弹簧，插入到最后一个元素（弹簧）之前，确保弹簧始终在最底部
@@ -45,6 +45,8 @@ void MusicPlaylist::AppendMusic(QPixmap pix, QUrl url, QString name, QString art
     unit->show();
 
     m_musiclist.append(unit);
+
+    connect(unit, &SongUnit::ChooseMusic, this, [this](int id){emit ChooseMusicpass(id);});
 }
 
 bool MusicPlaylist::isempty()

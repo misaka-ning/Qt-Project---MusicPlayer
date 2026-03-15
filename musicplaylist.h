@@ -31,6 +31,10 @@ private:
 
     QVector<SongUnit*> m_musiclist;
     QVBoxLayout *m_layout;
+
+signals:
+    void ChooseMusicpass(int id);
+
 };
 
 #endif // MUSICPLAYLIST_H

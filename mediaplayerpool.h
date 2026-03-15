@@ -27,7 +27,12 @@ private:
         QUrl url;
         int id;
     };
-    struct Worker {
+
+    // 对象池中的单个工作对象
+    struct Worker : public QObject{
+        Worker(QObject *parent) : QObject(parent) {}
+        ~Worker() {}
+
         QMediaPlayer *player;
         bool busy = false;
         Task currentTask;
@@ -36,9 +41,9 @@ private:
     void assignTask(Worker *worker);
     void releaseWorker(Worker *worker);
 
-    QList<Worker*> m_workers;
-    QQueue<Worker*> m_idleWorkers;
-    QQueue<Task> m_pendingTasks;
+    QList<Worker*> m_workers;           // 工作单元列表
+    QQueue<Worker*> m_idleWorkers;      // 空闲工作单元列表
+    QQueue<Task> m_pendingTasks;        // 待处理项目列表
     int m_maxConcurrent;
 };
 

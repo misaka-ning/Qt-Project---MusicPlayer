@@ -14,5 +14,6 @@
         <file>res/background.png</file>
         <file>res/background_fade.png</file>
         <file>res/misaka.png</file>
+        <file>res/background_fade2.png</file>
     </qresource>
 </RCC>
