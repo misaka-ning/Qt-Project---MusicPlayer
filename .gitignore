@@ -1,1 +1,14 @@
+# Build directories
 build/
+*-build/
+
+# Qt Creator files
+*.user
+*.autosave
+
+# Compiled files
+*.o
+*.exe
+*.dll
+*.a
+*.so
