@@ -1,0 +1,149 @@
+/* 主窗口样式 */
+MainWindow {
+    border-image: url(:/res/background_dark.png) 0 0 0 0 stretch stretch;
+}
+
+/* 控制部件样式 */
+#Controlwidget {
+    background-color: White;
+    border-radius: 10px;
+}
+
+/* 按钮样式 */
+QPushButton {
+    background-color: transparent;
+    border-style: none;
+    background-color: White;
+}
+
+/* 最小化按钮样式 */
+#minimizeButton {
+    background-color: transparent;
+    border-style: none;
+}
+
+#minimizeButton:hover {
+    background-color: rgba(255, 255, 255, 50);
+    border-radius: 4px;
+}
+
+/* 最大化按钮样式 */
+#maximizeButton {
+    background-color: transparent;
+    border-style: none;
+}
+
+#maximizeButton:hover {
+    background-color: rgba(255, 255, 255, 50);
+    border-radius: 4px;
+}
+
+/* 关闭按钮样式 */
+#closeButton {
+    background-color: transparent;
+    border-style: none;
+}
+
+#closeButton:hover {
+    background-color: rgba(255, 0, 0, 100);
+    border-radius: 4px;
+}
+
+/* 歌词列表样式 */
+QListWidget {
+    background-color: transparent;          /* 背景透明 */
+    border: none;                           /* 无边框 */
+    outline: none;                           /* 移除焦点虚线 */
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 21px;
+    color: rgba(255, 255, 255, 225);         /* 半透明白色文字 */
+}
+
+QListWidget::item {
+    padding: 8px 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 5); /* 半透明分割线 */
+    background-color: transparent;
+}
+
+QListWidget::item:hover {
+    background-color: rgba(255, 255, 255, 30); /* 悬停效果保留，提升交互 */
+    color: white;
+}
+
+QListWidget::item:selected {
+    background-color: rgba(218, 218, 218, 100);
+    color: white;
+}
+
+/* 歌曲名称标签样式 */
+QLabel#songnamelabel {
+    font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", sans-serif;
+    font-size: 28px;                /* 大号字体突出歌曲名 */
+    font-weight: 600;                /* 半粗体 */
+    color: white;                    /* 纯白文字 */
+    background-color: rgba(0, 0, 0, 80); /* 半透明黑色背景，增强文字可读性 */
+    padding: 10px 20px;               /* 内边距，让背景有呼吸空间 */
+    border-radius: 12px;              /* 圆角 */
+    letter-spacing: 1px;              /* 字符间距，更显精致 */
+    qproperty-alignment: AlignCenter; /* 文字居中（可选） */
+}
+
+/* 播放列表样式 */
+MusicPlaylist {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                  stop:0 #FEFEFE, stop:0.5 #FBFBFB, stop:1 #FEFEFE); 
+    border-radius: 10px;
+}
+
+/* 歌曲单元样式 */
+SongUnit {
+    background-color: white;
+}
+
+SongUnit:hover {
+    background-color: lightgray;
+}
+
+/* 水平 QSlider 进度条（修复圆形滑块） */
+QSlider {
+    height: 17px; /* 轨道高度，固定值 */
+    qproperty-style: Fusion; /* 强制启用Fusion风格，避免原生样式覆盖（关键） */
+}
+
+/* 轨道整体 */
+QSlider::groove:horizontal {
+    border: none;
+    height: 8px;
+    background: transparent;
+}
+
+/* 已播放区域（滑块左侧） */
+QSlider::sub-page:horizontal {
+    background: #543344;
+    border-radius: 4px; /* 轨道高度的一半，保持圆角 */
+}
+
+/* 未播放区域（滑块右侧，淡蓝色） */
+QSlider::add-page:horizontal {
+    background: #18325D;
+    border-radius: 4px;
+}
+
+/* 滑块按钮（核心：确保圆形） */
+QSlider::handle:horizontal {
+    background: white; /* 滑块底色 */
+    border: 2px solid #2E86AB; /* 边框与已播放区域呼应 */
+    width: 16px; /* 宽度必须 = 高度，否则是椭圆 */
+    height: 16px; /* 与宽度一致 */
+    margin: -4px 0px; /* 垂直居中：-(滑块高度-轨道高度)/2 = -(16-8)/2 = -4 */
+    border-radius: 8px; /* 必须 = 宽度/2（16/2=8），否则是圆角矩形/方形 */
+    cursor: pointer;
+    outline: none; /* 去掉焦点虚线框 */
+}
+
+/* 滑块悬浮效果（可选，增强体验） */
+QSlider::handle:horizontal:hover {
+    background: #F0F8FF;
+    border-color: #4169E1;
+    transform: scale(1.1); /* 悬浮轻微放大，可选 */
+}

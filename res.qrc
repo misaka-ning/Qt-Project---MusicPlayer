@@ -15,5 +15,30 @@
         <file>res/background_fade.png</file>
         <file>res/misaka.png</file>
         <file>res/background_fade2.png</file>
+        <file>res/background_dark.png</file>
+        <file>style.qss</file>
+        <file>style.qss</file>
+        <file>style.qss</file>
+        <file>res/background.png</file>
+        <file>res/background_dark.png</file>
+        <file>res/background_fade.png</file>
+        <file>res/background_fade2.png</file>
+        <file>res/close.png</file>
+        <file>res/close_hover.png</file>
+        <file>res/list play.png</file>
+        <file>res/list.png</file>
+        <file>res/loop play.png</file>
+        <file>res/Maximize.png</file>
+        <file>res/Minimize.png</file>
+        <file>res/misaka.png</file>
+        <file>res/next song.png</file>
+        <file>res/play order.png</file>
+        <file>res/play.png</file>
+        <file>res/playlist.png</file>
+        <file>res/prev song.png</file>
+        <file>res/repeat play.png</file>
+        <file>res/shuffle play.png</file>
+        <file>res/stop.png</file>
+        <file>res/Windowed.png</file>
     </qresource>
 </RCC>

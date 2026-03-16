@@ -2,12 +2,15 @@ D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/
   D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/moc_predefs.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QList \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QMap \
+  D:/Qt/6.8.3/mingw_64/include/QtCore/QModelIndex \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QObject \
+  D:/Qt/6.8.3/mingw_64/include/QtCore/QPointF \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QQueue \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QRect \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QSize \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QSizeF \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QString \
+  D:/Qt/6.8.3/mingw_64/include/QtCore/QTimer \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QUrl \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QVector \
   D:/Qt/6.8.3/mingw_64/include/QtCore/q20functional.h \
@@ -16,6 +19,7 @@ D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/
   D:/Qt/6.8.3/mingw_64/include/QtCore/q20type_traits.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/q20utility.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/q23utility.h \
+  D:/Qt/6.8.3/mingw_64/include/QtCore/qabstractitemmodel.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qalgorithms.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qanystringview.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qarraydata.h \
@@ -25,6 +29,7 @@ D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/
   D:/Qt/6.8.3/mingw_64/include/QtCore/qatomic.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qatomic_cxx11.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qbasicatomic.h \
+  D:/Qt/6.8.3/mingw_64/include/QtCore/qbasictimer.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qbindingstorage.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qbytearray.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qbytearrayalgorithms.h \
@@ -125,6 +130,7 @@ D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/
   D:/Qt/6.8.3/mingw_64/include/QtCore/qtdeprecationmarkers.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qtenvironmentvariables.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qtextstream.h \
+  D:/Qt/6.8.3/mingw_64/include/QtCore/qtimer.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qtmetamacros.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qtnoop.h \
   D:/Qt/6.8.3/mingw_64/include/QtCore/qtpreprocessorsupport.h \
@@ -145,6 +151,7 @@ D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/
   D:/Qt/6.8.3/mingw_64/include/QtCore/qyieldcpu.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/QMouseEvent \
   D:/Qt/6.8.3/mingw_64/include/QtGui/QPixmap \
+  D:/Qt/6.8.3/mingw_64/include/QtGui/QResizeEvent \
   D:/Qt/6.8.3/mingw_64/include/QtGui/QTransform \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qaction.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qbitmap.h \

@@ -105,6 +105,13 @@ public:
      */
     nextmode GetPlayMode() const { return m_nextmode; }
 
+    /**
+     * @brief 获取当前正在播放的歌曲索引
+     *
+     * 对应 MusicPlaylist 中的下标，用于外部（例如 MainWindow）获取当前歌曲信息或歌词。
+     */
+    int GetCurrentIndex() const { return m_playnum; }
+
 public slots:
     /**
      * @brief 由 MusicPlaylist 发出的“选中某首歌”信号触发
@@ -132,6 +139,7 @@ private:
     nextmode m_nextmode;                   ///< 当前播放模式
     QList<int> m_shuffleOrder;             ///< 随机播放顺序列表（存储歌曲索引）
     int        m_shuffleIndex;             ///< 当前在随机顺序列表中的位置
+    int        m_playToken;                ///< 用于丢弃过期的延迟检查（防止多次播放切换时误触发）
 
     /**
      * @brief 初始化 MediaPlayerPool，并连接任务完成/失败信号。

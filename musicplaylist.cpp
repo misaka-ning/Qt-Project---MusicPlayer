@@ -13,9 +13,6 @@ MusicPlaylist::MusicPlaylist(QWidget *parent)
     ui->scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     setAttribute(Qt::WA_StyledBackground, true);
-    setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
-                  "stop:0 #FEFEFE, stop:0.5 #FBFBFB, stop:1 #FEFEFE); "
-                  "border-radius: 10px;");
 
     // 获取内部容器的布局
     m_layout = qobject_cast<QVBoxLayout*>(ui->scrollAreaWidgetContents->layout());

@@ -21,8 +21,31 @@ PlayerController::PlayerController(QObject *parent)
     , m_autoplay(false)
     , m_nextmode(List_Play)
     , m_shuffleIndex(0)
+    , m_playToken(0)
 {
     m_player->setAudioOutput(m_audioOutput);
+
+    // 部分音频在 play() 后会停留在 0ms 不前进（直到发生一次 seek），这里做一次“卡住检测”自动唤醒。
+    connect(m_player, &QMediaPlayer::playbackStateChanged, this, [this](QMediaPlayer::PlaybackState state) {
+        if (state != QMediaPlayer::PlayingState) return;
+
+        const int token = ++m_playToken;
+        QTimer::singleShot(200, this, [this, token]() {
+            if (token != m_playToken) return; // 已经切换了歌曲/状态，丢弃
+            if (m_player->playbackState() != QMediaPlayer::PlayingState) return;
+            if (m_player->mediaStatus() != QMediaPlayer::LoadedMedia &&
+                m_player->mediaStatus() != QMediaPlayer::BufferedMedia &&
+                m_player->mediaStatus() != QMediaPlayer::StalledMedia)
+            {
+                return;
+            }
+
+            // 如果已经开始前进就不处理；否则轻微 seek 1ms 触发解码/时钟启动
+            if (m_player->position() == 0 && m_player->duration() > 0) {
+                m_player->setPosition(1);
+            }
+        });
+    });
 }
 
 /**

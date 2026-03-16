@@ -6,9 +6,9 @@
 void SongUnit::InitUnit()
 {
     // setFixedSize(400, 80);
+    setAutoFillBackground(false);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setMinimumHeight(80);  // 保持最小高度
-    setStyleSheet("SongUnit { background-color: white; } ");
     setAttribute(Qt::WA_StyledBackground, true);
 
     ui->imagelabel->setScaledContents(true);
@@ -65,7 +65,7 @@ void SongUnit::enterEvent(QEnterEvent *event)
     ui->namelabel->setStyleSheet("background-color: lightgray");
     ui->artistlabel->setStyleSheet("background-color: lightgray");
 
-    // 必须调用父类的事件处理，否则可能影响其他逻辑
+    // 样式已在QSS文件中定义，无需在这里设置
     QWidget::enterEvent(event);
 }
 
@@ -76,7 +76,7 @@ void SongUnit::leaveEvent(QEvent *event)
     ui->namelabel->setStyleSheet("background-color: white; ");
     ui->artistlabel->setStyleSheet("background-color: white; ");
 
-    // 必须调用父类的事件处理
+    // 样式已在QSS文件中定义，无需在这里设置
     QWidget::leaveEvent(event);
 }
 
