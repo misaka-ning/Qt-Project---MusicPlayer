@@ -1,0 +1,18 @@
+# ninja log v5
+4	902	7953351922034836	MusicPlayer_autogen/timestamp	3197c275ee7fb4b4
+4	902	7953351922034836	MusicPlayer_autogen/mocs_compilation.cpp	3197c275ee7fb4b4
+4	902	7953351922034836	D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/timestamp	3197c275ee7fb4b4
+4	902	7953351922034836	D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/mocs_compilation.cpp	3197c275ee7fb4b4
+906	1275	7953351926486815	MusicPlayer_autogen/EWIEGA46WW/qrc_res.cpp	b2de0fe051d4930b
+906	1275	7953351926486815	D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/EWIEGA46WW/qrc_res.cpp	b2de0fe051d4930b
+1283	4429	7953351958023829	CMakeFiles/MusicPlayer.dir/marqueelabel.cpp.obj	8679277c77f088d7
+1277	4528	7953351959016308	CMakeFiles/MusicPlayer.dir/main.cpp.obj	cede4fd740866e8e
+1286	4543	7953351959170532	CMakeFiles/MusicPlayer.dir/songunit.cpp.obj	7f3581d71413ffa6
+1289	4577	7953351959514857	CMakeFiles/MusicPlayer.dir/musicplaylist.cpp.obj	ed0bc0f26e920e99
+1295	4642	7953351960174529	CMakeFiles/MusicPlayer.dir/lrcparser.cpp.obj	b6cc6eb946faf5a0
+1292	4649	7953351960229593	CMakeFiles/MusicPlayer.dir/mediaplayerpool.cpp.obj	346aaf00044aecb
+1275	4964	7953351963394330	CMakeFiles/MusicPlayer.dir/MusicPlayer_autogen/mocs_compilation.cpp.obj	400e8f82b78e31c9
+1298	5267	7953351966432032	CMakeFiles/MusicPlayer.dir/playercontroller.cpp.obj	bd54233a973bed94
+1280	5653	7953351970277587	CMakeFiles/MusicPlayer.dir/mainwindow.cpp.obj	e7dd9da5fa05d4e3
+1301	11575	7953352029516151	CMakeFiles/MusicPlayer.dir/MusicPlayer_autogen/EWIEGA46WW/qrc_res.cpp.obj	58a4525985c0c335
+11576	12422	7953352037950485	MusicPlayer.exe	a59d3f71ceeda36c

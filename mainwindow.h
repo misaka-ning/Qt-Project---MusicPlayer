@@ -11,7 +11,7 @@
 #include <QMap>
 #include <QUrl>
 #include "musicplaylist.h"
-#include "mediaplayerpool.h"
+#include "playercontroller.h"
 #include "LrcParser.h"  // 包含歌词解析类头文件
 
 QT_BEGIN_NAMESPACE
@@ -19,12 +19,6 @@ namespace Ui {
 class MainWindow;
 }
 QT_END_NAMESPACE
-
-enum nextmode{
-    List_Play,   // 列表循环
-    Loop_Play,   // 随机播放
-    Repeat_Play  // 单曲循环
-};
 
 class MainWindow : public QMainWindow
 {
@@ -37,18 +31,8 @@ public:
 private:
     Ui::MainWindow *ui;
 
-    QMediaPlayer *m_player;
-    QAudioOutput *m_audioOutput;
-    // QVector<QUrl> m_playlist;
-    int m_playnum;
     MusicPlaylist *m_musicplaylist;
-    QMap<QUrl, int> m_urlToIndex;   // 读取音频映射
-    MediaPlayerPool *m_pool;
-    bool m_autoplay;
-    nextmode m_nextmode;
-    QVector<int> m_randommap;     // 随机播放的唯一映射
-    QList<int> m_shuffleOrder;    // 随机播放顺序列表（存储歌曲索引）
-    int        m_shuffleIndex;    // 当前在随机顺序列表中的位置
+    PlayerController *m_playerController;
 
     LrcParser *m_lrcParser;
     QVector<LrcLine> m_lyrics;
@@ -56,18 +40,12 @@ private:
     void updateLyrics(qint64 position);             // 更新歌词显示
 
     void InitWindow();
-    void InitPool();
     void InitButtons();
     void InitButtonIcon(QPushButton *button, const QString &path);
     void InitPlayList();
-    void InitPlay();
     void InitLrcParser();
 
-    void PlayPrevSong();
-    void PlayNextSong();
     void UpdateMusicListPosition();
-    void UpdateRandomArray();
-    void PlaySong();
 
 private slots:
     void StatusChanged(QMediaPlayer::MediaStatus status);

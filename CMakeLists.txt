@@ -32,6 +32,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         musicplaylist.h musicplaylist.cpp musicplaylist.ui
         mediaplayerpool.h mediaplayerpool.cpp
         lrcparser.h lrcparser.cpp
+        playercontroller.h playercontroller.cpp
     )
 else()
     if(ANDROID)

@@ -5,7 +5,6 @@
 #include <QDir>
 #include <QCoreApplication>
 #include <QResizeEvent>
-#include <QRandomGenerator>
 #include <QScrollBar>
 #include <QMouseEvent>
 #include <QStyle>
@@ -22,34 +21,7 @@ void MainWindow::InitWindow()
     ui->imagelabel->setFixedSize(300, 300);
     ui->imagelabel->setScaledContents(true);
 
-    m_playnum = 0;
-    m_autoplay = false;
-    m_nextmode = List_Play;
-
     ui->Slider->installEventFilter(this);
-}
-
-void MainWindow::InitPool()
-{
-    // 创建对象池（最大并发数设为4）
-    m_pool = new MediaPlayerPool(4, this);
-
-    // 连接任务完成信号：更新播放列表对应项
-    connect(m_pool, &MediaPlayerPool::taskFinished, this, [this](int taskId, const QPixmap &cover, const QString &title, const QString &artist) {
-        if (taskId >= 0 && taskId < m_musicplaylist->Getsize()) {
-            // 如果封面有效则使用，否则保持默认图片
-            QPixmap finalCover = cover;
-            if (finalCover.isNull()) {
-                finalCover = QPixmap(":/res/misaka.png");
-            }
-            m_musicplaylist->updateItem(taskId, finalCover, title, artist);
-        }
-    });
-
-    // 连接任务失败信号（可选，用于调试）
-    connect(m_pool, &MediaPlayerPool::taskFailed, this, [this](int taskId, const QString &error) {
-        qDebug() << "任务失败，索引:" << taskId << "错误:" << error;
-    });
 }
 
 // 初始化所有按钮
@@ -63,47 +35,52 @@ void MainWindow::InitButtons()
 
     // 实现循环模式按钮功能
     connect(ui->modeButton, &QPushButton::clicked, this, [this](){
-        switch(m_nextmode)
+        if (!m_playerController) return;
+        nextmode mode = m_playerController->GetPlayMode();
+        switch(mode)
         {
             case(List_Play):
             {
-                m_nextmode = Repeat_Play;
+                m_playerController->SetPlayMode(Repeat_Play);
                 InitButtonIcon(ui->modeButton, ":/res/repeat play.png");
             }
             break;
             case(Loop_Play):
             {
-                m_nextmode = List_Play;
+                m_playerController->SetPlayMode(List_Play);
                 InitButtonIcon(ui->modeButton, ":/res/list play.png");
-                m_shuffleOrder.clear();
             }
             break;
             case(Repeat_Play):
             {
-                m_nextmode = Loop_Play;
+                m_playerController->SetPlayMode(Loop_Play);
                 InitButtonIcon(ui->modeButton, ":/res/loop play.png");
-                // 生成随机播放顺序
-                UpdateRandomArray();
             }
             break;
         }
     });
 
     // 实现上一首按钮功能
-    connect(ui->prevButton, &QPushButton::clicked, this, &MainWindow::PlayPrevSong);
+    connect(ui->prevButton, &QPushButton::clicked, this, [this](){
+        if (m_playerController) m_playerController->PlayPrevSong();
+    });
     // 实现下一首按钮功能
-    connect(ui->nextButton, &QPushButton::clicked, this, &MainWindow::PlayNextSong);
+    connect(ui->nextButton, &QPushButton::clicked, this, [this](){
+        if (m_playerController) m_playerController->PlayNextSong();
+    });
 
     // 实现使用playButton按钮控制音乐暂停、播放功能
     connect(ui->playButton, &QPushButton::clicked, this, [this](){
-        if(m_player->isPlaying())
+        if(!m_playerController) return;
+        QMediaPlayer *player = m_playerController->GetPlayer();
+        if(player->isPlaying())
         {
-            m_player->pause();
+            player->pause();
             InitButtonIcon(ui->playButton, ":/res/play.png");
         }
         else
         {
-            m_player->play();
+            player->play();
             InitButtonIcon(ui->playButton, ":/res/stop.png");
         }
     });
@@ -164,60 +141,12 @@ void MainWindow::InitPlayList()
         qDebug() << "MusicList 文件夹已存在：" << musicListPath;
     }
 
-    // 创建播放列表
-    // m_playlist.clear();
     m_musicplaylist = new MusicPlaylist(this);
     m_musicplaylist->hide();
     UpdateMusicListPosition();
-
-    // 定义支持的音频格式
-    QStringList audioSuffixes = {"mp3", "wav", "flac", "aac", "ogg", "m4a", "wma"};
-
-    // 遍历 MusicList 文件夹，添加音频文件
-    QDir musicDir(musicListPath);
-    QFileInfoList allFiles = musicDir.entryInfoList(QDir::Files); // 获取所有文件
-    int index = 0;
-
-    foreach (const QFileInfo &fileInfo, allFiles) {
-        QString suffix = fileInfo.suffix().toLower();
-        if (!audioSuffixes.contains(suffix))
-            continue;
-
-        QUrl url = QUrl::fromLocalFile(fileInfo.absoluteFilePath());
-
-        // 1. 先用占位数据添加到播放列表
-        m_musicplaylist->AppendMusic(QPixmap(":/res/misaka.png"), url, "加载中", "加载中");
-
-        // 2. 记录URL到索引的映射（可选，但保留）
-        m_urlToIndex[url] = index;
-
-        // 3. 添加任务到对象池，使用索引作为任务ID
-        m_pool->addTask(url, index);
-
-        ++index;
+    if (m_playerController) {
+        m_playerController->InitPlayList(m_musicplaylist);
     }
-
-    // 4. 启动对象池处理任务
-    m_pool->start();
-
-    // 初始化洗牌顺序为空（当前为列表模式，暂不需要）
-    m_shuffleOrder.clear();
-    m_shuffleIndex = 0;
-
-    // 设置当前播放源为列表第一首（不自动播放）
-    if (!m_musicplaylist->isempty()) {
-        m_player->setSource(m_musicplaylist->Geturl(m_playnum));
-        m_audioOutput->setVolume(1);
-    }
-}
-
-// 初始化音乐播放器
-void MainWindow::InitPlay()
-{
-    m_player = new QMediaPlayer(this);
-    m_audioOutput = new QAudioOutput(this);
-
-    m_player->setAudioOutput(m_audioOutput);
 }
 
 // 初始化播放列表
@@ -225,7 +154,9 @@ void MainWindow::InitLrcParser()
 {
     // 歌词解析对象
     m_lrcParser = new LrcParser(this);
-    connect(m_player, &QMediaPlayer::positionChanged, this, &MainWindow::onPositionChanged);
+    if (m_playerController) {
+        connect(m_playerController->GetPlayer(), &QMediaPlayer::positionChanged, this, &MainWindow::onPositionChanged);
+    }
 
     ui->lyricsListWidget->setStyleSheet(R"(
     QListWidget {
@@ -269,60 +200,6 @@ void MainWindow::InitLrcParser()
     ui->lyricsListWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 }
 
-// 自动播放上一首
-void MainWindow::PlayPrevSong()
-{
-    if (m_musicplaylist->isempty()) return;
-    if(m_player->isPlaying()) m_autoplay = true;
-
-
-    if(m_nextmode == Repeat_Play)
-    {
-        m_player->setPosition(1);
-        return;  // 单曲循环就不用重新setSource了,直接把进度条归零就好
-    }
-
-    if(m_nextmode == List_Play)
-    {
-        m_playnum--;
-        if(m_playnum == -1) m_playnum = m_musicplaylist->Getsize() - 1;
-    }
-    else if(m_nextmode == Loop_Play)
-    {
-        // 移动到随机顺序中的前一个（循环）
-        m_shuffleIndex = (m_shuffleIndex - 1 + m_shuffleOrder.size()) % m_shuffleOrder.size();
-        m_playnum = m_shuffleOrder[m_shuffleIndex];
-    }
-
-    PlaySong();
-}
-
-// 自动播放下一首
-void MainWindow::PlayNextSong()
-{
-    if (m_musicplaylist->isempty()) return;
-    if(m_player->isPlaying()) m_autoplay = true;
-
-    if(m_nextmode == Repeat_Play)
-    {
-        m_player->setPosition(1);
-        return;  // 单曲循环就不用重新setSource了,直接把进度条归零就好
-    }
-
-    if(m_nextmode == List_Play)
-    {
-        m_playnum = (m_playnum + 1) % m_musicplaylist->Getsize();
-    }
-    else if(m_nextmode == Loop_Play)
-    {
-        // 移动到随机顺序中的下一个（循环）
-        m_shuffleIndex = (m_shuffleIndex + 1) % m_shuffleOrder.size();
-        m_playnum = m_shuffleOrder[m_shuffleIndex];
-    }
-
-    PlaySong();
-}
-
 void MainWindow::UpdateMusicListPosition()
 {
     int window_width = this->width();
@@ -333,48 +210,6 @@ void MainWindow::UpdateMusicListPosition()
     m_musicplaylist->setFixedHeight(target_h);
 }
 
-// 更新一组新的随机播放数组
-void MainWindow::UpdateRandomArray()
-{
-    int size = m_musicplaylist->Getsize();
-    m_shuffleOrder.clear();
-    if (size == 0) return;
-
-    // 初始化顺序列表为 0 ~ size-1
-    for (int i = 0; i < size; ++i) {
-        m_shuffleOrder.append(i);
-    }
-
-    // Fisher-Yates 洗牌算法生成随机顺序
-    for (int i = size - 1; i > 0; --i) {
-        int j = QRandomGenerator::global()->bounded(i + 1);
-        m_shuffleOrder.swapItemsAt(i, j);
-    }
-
-    // 找到当前正在播放的歌曲在随机顺序中的位置
-    m_shuffleIndex = m_shuffleOrder.indexOf(m_playnum);
-}
-
-void MainWindow::PlaySong()
-{
-    m_player->setSource(m_musicplaylist->Geturl(m_playnum));
-
-    // 加载歌词
-    // QString filePath = m_musicplaylist->Geturl(m_playnum).toLocalFile();
-    // if (!filePath.isEmpty()) {
-    //     loadLyrics(filePath);
-    // }
-
-    if(m_autoplay)
-    {
-        // 等待0.5秒确保音乐已经加载完毕
-        QTimer::singleShot(500, [=]() {
-            m_autoplay = false;
-            m_player->play();
-        });
-    }
-}
-
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -383,21 +218,22 @@ MainWindow::MainWindow(QWidget *parent)
 
     // 初始化
     InitWindow();
-    InitPool();
+    m_playerController = new PlayerController(this);
     InitButtons();
-    InitPlay();
     InitPlayList();
     InitLrcParser();
 
+    QMediaPlayer *player = m_playerController->GetPlayer();
+
     // 音乐准备完毕信号槽
-    connect(m_player, &QMediaPlayer::mediaStatusChanged, this, &MainWindow::StatusChanged);
+    connect(player, &QMediaPlayer::mediaStatusChanged, this, &MainWindow::StatusChanged);
 
     // 音乐播放结束信号槽
-    connect(m_player, &QMediaPlayer::playbackStateChanged, this, &MainWindow::StateChange);
+    connect(player, &QMediaPlayer::playbackStateChanged, this, &MainWindow::StateChange);
 
     // 进度条相关槽函数
-    connect(m_player, &QMediaPlayer::positionChanged, this, &MainWindow::updateSliderPosition);
-    connect(m_player, &QMediaPlayer::durationChanged, this, &MainWindow::updateSliderRange);
+    connect(player, &QMediaPlayer::positionChanged, this, &MainWindow::updateSliderPosition);
+    connect(player, &QMediaPlayer::durationChanged, this, &MainWindow::updateSliderRange);
     connect(ui->Slider, &QSlider::sliderMoved, this, &MainWindow::onProgressSliderMoved);
     // 假设你有一个 QSlider 对象叫做 slider
     connect(ui->Slider, &QSlider::valueChanged, this, [=](int currentValue) {
@@ -408,25 +244,7 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     // 使用音乐播放列表选择播放音乐
-    connect(m_musicplaylist, &MusicPlaylist::ChooseMusicpass, this, [this](int id){
-        if(m_nextmode == Loop_Play)
-        {
-            m_playnum = id;
-            int idx = m_shuffleOrder.indexOf(m_playnum);
-            if (idx == -1) {
-                // 如果当前歌曲不在随机顺序列表中（例如播放列表已更新），重新生成随机顺序
-                UpdateRandomArray();
-            } else {
-                m_shuffleIndex = idx;
-            }
-        }
-        else
-        {
-            m_playnum = id;
-        }
-        if(m_player->isPlaying()) m_autoplay = true;
-        PlaySong();
-    });
+    connect(m_musicplaylist, &MusicPlaylist::ChooseMusicpass, m_playerController, &PlayerController::OnChooseMusic);
 }
 
 void MainWindow::updateSliderRange(qint64 duration)
@@ -451,7 +269,8 @@ void MainWindow::updateSliderPosition(qint64 position)
 
 void MainWindow::onProgressSliderMoved(int value)
 {
-    m_player->setPosition(static_cast<qint64>(value));
+    if (!m_playerController) return;
+    m_playerController->GetPlayer()->setPosition(static_cast<qint64>(value));
 }
 
 MainWindow::~MainWindow()
@@ -526,7 +345,8 @@ void MainWindow::StatusChanged(QMediaPlayer::MediaStatus status)
 // 更新音乐元数据
 void MainWindow::UpdateMetadata()
 {
-    QMediaMetaData metaData = m_player->metaData();
+    if (!m_playerController) return;
+    QMediaMetaData metaData = m_playerController->GetPlayer()->metaData();
 
     MarqueeLabel *artistlabel = ui->Controlwidget->findChild<MarqueeLabel*>("artistlabel");
     MarqueeLabel *namelabel = ui->Controlwidget->findChild<MarqueeLabel*>("namelabel");
@@ -559,10 +379,11 @@ void MainWindow::UpdateMetadata()
     if(image_flag) ui->imagelabel->setPixmap(QPixmap(":/res/misaka.png"));
 
     // 解决一些莫名其妙的bug
-    m_player->setPosition(1);
+    m_playerController->GetPlayer()->setPosition(1);
 
     // 设置歌词
-    QString filePath = m_musicplaylist->Geturl(m_playnum).toLocalFile();
+    if (!m_musicplaylist) return;
+    QString filePath = m_musicplaylist->Geturl(0).toLocalFile();
     if (!filePath.isEmpty()) {
         loadLyrics(filePath);
     }
@@ -585,10 +406,9 @@ void MainWindow::StateChange(QMediaPlayer::PlaybackState state)
 
 void MainWindow::MusicEnd()
 {
-    // InitButtonIcon(ui->playButton, ":/res/play.png");
-    // 自动下一首
-    m_autoplay = true;
-    if (!m_musicplaylist->isempty()) PlayNextSong();
+    if (m_playerController) {
+        m_playerController->MusicEnd();
+    }
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)
