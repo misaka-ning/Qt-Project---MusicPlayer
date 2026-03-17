@@ -14,6 +14,7 @@
 #include <QTimer>
 #include <QModelIndex>
 #include <QResizeEvent>
+#include <QLabel>
 #include "musicplaylist.h"
 #include "playercontroller.h"
 #include "LrcParser.h"  // 包含歌词解析类头文件
@@ -37,6 +38,7 @@ private:
 
     MusicPlaylist *m_musicplaylist;
     PlayerController *m_playerController;
+    QLabel *m_emptyOverlayLabel;
 
     bool  m_sliderPressed;       // 当前是否在按住进度条拖动
     bool  m_ignoreSliderUpdate;  // 在一次主动 seek 之后，短时间内忽略播放器发来的位置更新（防止“回弹”）
@@ -77,8 +79,12 @@ private:
     void InitButtonIcon(QPushButton *button, const QString &path);
     void InitPlayList();
     void InitLrcParser();
+    void updatePlaybackControlsEnabled(bool enabled);
+    void updateEmptyOverlayVisible(bool visible);
 
     void UpdateMusicListPosition();
+    void togglePlaylist();
+    void hidePlaylistIfVisible();
 
     // 窗口调整大小相关函数
     Edge getEdge(const QPoint &pos);  // 根据鼠标位置获取边缘类型

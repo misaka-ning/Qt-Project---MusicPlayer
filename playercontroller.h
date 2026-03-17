@@ -112,6 +112,21 @@ public:
      */
     int GetCurrentIndex() const { return m_playnum; }
 
+    /**
+     * @brief 设置下一次换源时自动播放
+     *
+     * 当歌曲自动运行到结束时，isplay()为false，但仍有可能有需要自动播放的需求
+     */
+    void SetAutoPlay(bool flag) {m_autoplay = flag;}
+
+signals:
+    /**
+     * @brief 播放列表是否可用（是否有歌曲）状态变化
+     *
+     * 用于通知 UI 启用/禁用播放相关控件与空列表占位状态。
+     */
+    void playlistAvailabilityChanged(bool hasSongs);
+
 public slots:
     /**
      * @brief 由 MusicPlaylist 发出的“选中某首歌”信号触发
@@ -152,6 +167,13 @@ private:
      * 仅在 Loop_Play（随机播放）模式下使用。
      */
     void UpdateRandomArray();
+
+    /**
+     * @brief 确保 m_playnum 始终落在 [0, size) 范围内
+     *
+     * 当播放列表为空时返回 false；非空时会对越界值进行 clamp，并返回 true。
+     */
+    bool ensureValidPlayIndex();
 };
 
 #endif // PLAYERCONTROLLER_H

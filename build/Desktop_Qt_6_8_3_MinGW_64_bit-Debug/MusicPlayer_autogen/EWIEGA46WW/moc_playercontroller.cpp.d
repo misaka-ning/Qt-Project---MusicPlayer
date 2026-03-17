@@ -3,6 +3,7 @@ D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/
   D:/Qt/6.8.3/mingw_64/include/QtCore/QList \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QMap \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QObject \
+  D:/Qt/6.8.3/mingw_64/include/QtCore/QPoint \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QQueue \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QRect \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QSize \
@@ -165,6 +166,7 @@ D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/
   D:/Qt/6.8.3/mingw_64/include/QtGui/qkeysequence.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qpaintdevice.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qpalette.h \
+  D:/Qt/6.8.3/mingw_64/include/QtGui/qpicture.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qpixelformat.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qpixmap.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qpointingdevice.h \
@@ -174,6 +176,7 @@ D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/
   D:/Qt/6.8.3/mingw_64/include/QtGui/qrgba64.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qscreen.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qscreen_platform.h \
+  D:/Qt/6.8.3/mingw_64/include/QtGui/qtextdocument.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qtgui-config.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qtguiexports.h \
   D:/Qt/6.8.3/mingw_64/include/QtGui/qtguiglobal.h \
@@ -191,10 +194,13 @@ D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/
   D:/Qt/6.8.3/mingw_64/include/QtMultimedia/qtmultimedia-config.h \
   D:/Qt/6.8.3/mingw_64/include/QtMultimedia/qtmultimediaexports.h \
   D:/Qt/6.8.3/mingw_64/include/QtMultimedia/qtmultimediaglobal.h \
+  D:/Qt/6.8.3/mingw_64/include/QtWidgets/QLabel \
   D:/Qt/6.8.3/mingw_64/include/QtWidgets/QVBoxLayout \
   D:/Qt/6.8.3/mingw_64/include/QtWidgets/QWidget \
   D:/Qt/6.8.3/mingw_64/include/QtWidgets/qboxlayout.h \
+  D:/Qt/6.8.3/mingw_64/include/QtWidgets/qframe.h \
   D:/Qt/6.8.3/mingw_64/include/QtWidgets/qgridlayout.h \
+  D:/Qt/6.8.3/mingw_64/include/QtWidgets/qlabel.h \
   D:/Qt/6.8.3/mingw_64/include/QtWidgets/qlayout.h \
   D:/Qt/6.8.3/mingw_64/include/QtWidgets/qlayoutitem.h \
   D:/Qt/6.8.3/mingw_64/include/QtWidgets/qsizepolicy.h \

@@ -90,18 +90,53 @@ QLabel#songnamelabel {
 
 /* 播放列表样式 */
 MusicPlaylist {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                  stop:0 #FEFEFE, stop:0.5 #FBFBFB, stop:1 #FEFEFE); 
+    background-color: #212129;
+    border: 1px solid rgba(255, 255, 255, 18);
     border-radius: 10px;
+}
+
+/* 让 scrollArea 不遮挡 MusicPlaylist 背景 */
+MusicPlaylist QScrollArea {
+    background: transparent;
+    border: none;
+}
+
+MusicPlaylist QScrollArea::viewport {
+    background: transparent;
+}
+
+MusicPlaylist QWidget#scrollAreaWidgetContents {
+    background: transparent;
 }
 
 /* 歌曲单元样式 */
 SongUnit {
-    background-color: white;
+    background-color: rgba(255, 255, 255, 6);
+    border-bottom: 1px solid rgba(255, 255, 255, 10);
 }
 
 SongUnit:hover {
-    background-color: lightgray;
+    background-color: rgba(255, 255, 255, 12);
+}
+
+/* SongUnit 内部文字（暗色主题） */
+SongUnit QLabel#namelabel {
+    color: rgba(255, 255, 255, 230);
+    background: transparent;
+}
+
+SongUnit QLabel#artistlabel {
+    color: rgba(255, 255, 255, 160);
+    background: transparent;
+}
+
+/* 鼠标进入 SongUnit 时，同时改变内部两个 label 的样式 */
+SongUnit:hover QLabel#namelabel {
+    color: rgba(255, 255, 255, 255);
+}
+
+SongUnit:hover QLabel#artistlabel {
+    color: rgba(255, 255, 255, 200);
 }
 
 /* 水平 QSlider 进度条（修复圆形滑块） */

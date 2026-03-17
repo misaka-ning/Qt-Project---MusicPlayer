@@ -19,6 +19,7 @@ public:
     explicit SongUnit(int id, QPixmap pix, QUrl url, QString name = "未知曲目", QString artist = "未知艺术家", QWidget *parent = nullptr);
     ~SongUnit();
 
+    void SetId(int id);
     void SetPixmap(const QPixmap pix);
     void SetName(const QString name);
     void SetArtist(const QString artist);

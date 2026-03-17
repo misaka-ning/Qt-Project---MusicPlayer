@@ -12,7 +12,37 @@
 #include <QPainterPath>
 #include <QPen>
 #include <QBrush>
+#include <QApplication>
+#include <QGraphicsOpacityEffect>
 #include "songunit.h"
+
+void MainWindow::updatePlaybackControlsEnabled(bool enabled)
+{
+    if (!ui) return;
+
+    if (ui->prevButton) ui->prevButton->setEnabled(enabled);
+    if (ui->playButton) ui->playButton->setEnabled(enabled);
+    if (ui->nextButton) ui->nextButton->setEnabled(enabled);
+    if (ui->modeButton) ui->modeButton->setEnabled(enabled);
+    if (ui->Slider) ui->Slider->setEnabled(enabled);
+
+    // 列表按钮始终可用（用于“空列表时也能打开列表窗口看占位”）
+    if (ui->listButton) ui->listButton->setEnabled(true);
+
+    // 空列表时把播放按钮状态复位到“播放”
+    if (!enabled && ui->playButton) {
+        InitButtonIcon(ui->playButton, ":/res/play.png");
+    }
+}
+
+void MainWindow::updateEmptyOverlayVisible(bool visible)
+{
+    if (!m_emptyOverlayLabel) return;
+    m_emptyOverlayLabel->setVisible(visible);
+    if (visible) {
+        m_emptyOverlayLabel->raise();
+    }
+}
 
 // 加载样式文件
 void MainWindow::loadStyleSheet()
@@ -51,6 +81,22 @@ void MainWindow::InitWindow()
     ui->imagelabel->setFixedSize(300, 300);
     ui->imagelabel->setScaledContents(true);
 
+    // 空列表占位 overlay（不拦截鼠标事件，避免挡住按钮）
+    m_emptyOverlayLabel = new QLabel(this);
+    m_emptyOverlayLabel->setText(QStringLiteral("当前没有加载的音乐"));
+    m_emptyOverlayLabel->setAlignment(Qt::AlignCenter);
+    m_emptyOverlayLabel->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    m_emptyOverlayLabel->setStyleSheet(
+        "QLabel{"
+        "color: rgba(255,255,255,200);"
+        "background-color: rgba(0,0,0,120);"
+        "border-radius: 12px;"
+        "padding: 14px 22px;"
+        "font-size: 18px;"
+        "}"
+    );
+    m_emptyOverlayLabel->hide();
+
     m_sliderPressed = false;
     m_ignoreSliderUpdate = false;
     m_pendingSeek = -1;
@@ -63,6 +109,11 @@ void MainWindow::InitWindow()
     ui->Slider->installEventFilter(this);
     // 为主窗口安装事件过滤器
     this->installEventFilter(this);
+
+    // 应用级事件过滤：用于捕获“点击播放列表外部自动隐藏”
+    if (qApp) {
+        qApp->installEventFilter(this);
+    }
 }
 
 // 初始化所有按钮
@@ -76,6 +127,7 @@ void MainWindow::InitButtons()
     InitButtonIcon(ui->minimizeButton, ":/res/Minimize.png");
     InitButtonIcon(ui->maximizeButton, ":/res/Maximize.png");
     InitButtonIcon(ui->closeButton, ":/res/close.png");
+    InitButtonIcon(ui->moreButton, ":/res/more.png");
 
     // 实现循环模式按钮功能
     connect(ui->modeButton, &QPushButton::clicked, this, [this](){
@@ -129,16 +181,9 @@ void MainWindow::InitButtons()
         }
     });
 
-    // 实现点击listButton时，弹出或关闭音乐播放列表窗口
+    // 实现点击listButton时，弹出或关闭音乐播放列表窗口（带动画）
     connect(ui->listButton, &QPushButton::clicked, this, [this](){
-        if(m_musicplaylist->isVisible())
-        {
-            m_musicplaylist->hide();
-        }
-        else
-        {
-            m_musicplaylist->show();
-        }
+        togglePlaylist();
     });
 
     // 实现最小化按钮功能
@@ -233,8 +278,30 @@ void MainWindow::UpdateMusicListPosition()
     int window_height = this->height();
     int target_x = window_width - 390;
     int target_h = window_height - 300;
-    m_musicplaylist->move(target_x, 100);
-    m_musicplaylist->setFixedHeight(target_h);
+    const QPoint targetPos(target_x, 100);
+    if (m_musicplaylist) {
+        m_musicplaylist->setFixedHeight(target_h);
+        m_musicplaylist->setTargetPos(targetPos);
+    }
+}
+
+void MainWindow::togglePlaylist()
+{
+    if (!m_musicplaylist) return;
+
+    if (m_musicplaylist->isVisible()) {
+        m_musicplaylist->hideAnimated();
+    } else {
+        UpdateMusicListPosition();
+        m_musicplaylist->showAnimated();
+    }
+}
+
+void MainWindow::hidePlaylistIfVisible()
+{
+    if (!m_musicplaylist) return;
+    if (!m_musicplaylist->isVisible()) return;
+    m_musicplaylist->hideAnimated();
 }
 
 MainWindow::MainWindow(QWidget *parent)
@@ -246,6 +313,13 @@ MainWindow::MainWindow(QWidget *parent)
     // 初始化
     InitWindow();
     m_playerController = new PlayerController(this);
+
+    // 播放列表可用性变化：统一更新 overlay 与控件可用性
+    connect(m_playerController, &PlayerController::playlistAvailabilityChanged, this, [this](bool hasSongs) {
+        updateEmptyOverlayVisible(!hasSongs);
+        updatePlaybackControlsEnabled(hasSongs);
+    });
+
     InitButtons();
     InitPlayList();
     InitLrcParser();
@@ -264,6 +338,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     // 使用音乐播放列表选择播放音乐
     connect(m_musicplaylist, &MusicPlaylist::ChooseMusicpass, m_playerController, &PlayerController::OnChooseMusic);
+
+    // 初始化一次空/非空状态（避免错过 InitPlayList 内部 emit）
+    const bool hasSongs = (m_musicplaylist && !m_musicplaylist->isempty());
+    updateEmptyOverlayVisible(!hasSongs);
+    updatePlaybackControlsEnabled(hasSongs);
 }
 
 void MainWindow::updateSliderRange(qint64 duration)
@@ -301,26 +380,24 @@ MainWindow::~MainWindow()
 
 void MainWindow::loadLyrics(const QString &musicFilePath)
 {
-    // 构造歌词文件路径：将音乐文件后缀替换为 .lrc
     QFileInfo info(musicFilePath);
     QString lrcPath = info.absolutePath() + "/" + info.completeBaseName() + ".lrc";
 
-    if (m_lrcParser->parseFile(lrcPath)) {
-        m_lyrics = m_lrcParser->lyrics();
-        // 清空并填充歌词列表控件
-        ui->lyricsListWidget->clear();
+    bool ok = m_lrcParser->parseFile(lrcPath);
+    m_lyrics = m_lrcParser->lyrics();   // 同步歌词数据
+
+    ui->lyricsListWidget->clear();
+    if (ok && !m_lyrics.isEmpty()) {
+        // 有歌词：填充真实歌词行
         for (const auto &line : m_lyrics) {
             ui->lyricsListWidget->addItem(line.text);
         }
-        
-        // 在歌词末尾添加空白行，确保最后几行歌词也能居中显示
+        // 添加空白行，便于最后几行居中
         for (int i = 0; i < 5; ++i) {
             ui->lyricsListWidget->addItem("");
         }
-        // 重置手动滚动标志，并立即居中当前行
+        // 重置手动滚动标志，并居中当前行
         m_manualScroll = false;
-        m_wheelTimer->stop();  // 停止可能正在运行的定时器
-
         if (m_playerController) {
             qint64 pos = m_playerController->GetPlayer()->position();
             int idx = m_lrcParser->currentIndex(pos);
@@ -328,10 +405,8 @@ void MainWindow::loadLyrics(const QString &musicFilePath)
                 ui->lyricsListWidget->scrollToItem(ui->lyricsListWidget->item(idx), QAbstractItemView::PositionAtCenter);
             }
         }
-
     } else {
-         // 无歌词时显示占位项，并重置标志
-        ui->lyricsListWidget->clear();
+        // 无歌词：显示占位项
         QListWidgetItem *noLrcItem = new QListWidgetItem("无歌词");
         QFont font = noLrcItem->font();
         font.setItalic(true);
@@ -339,7 +414,11 @@ void MainWindow::loadLyrics(const QString &musicFilePath)
         noLrcItem->setForeground(QColor(128, 128, 128));
         noLrcItem->setTextAlignment(Qt::AlignCenter);
         ui->lyricsListWidget->addItem(noLrcItem);
+        m_manualScroll = false;   // 同样重置手动滚动标志
     }
+
+    // 停止可能正在运行的滚轮定时器
+    m_wheelTimer->stop();
 }
 
 void MainWindow::onPositionChanged(qint64 position)
@@ -450,7 +529,9 @@ void MainWindow::StatusChanged(QMediaPlayer::MediaStatus status)
         // 如果用户正在按住进度条拖动，则先不切到下一首，
         // 等鼠标释放时再根据最终位置决定是停在当前还是跳到下一曲
         if (!m_sliderPressed) {
-            MusicEnd();                  // 正常播放结束时，自动切换到下一首
+            // 正常播放结束时，自动切换到下一首，并自动开始播放
+            m_playerController->SetAutoPlay(true);
+            MusicEnd();
         }
         break;
     case QMediaPlayer::InvalidMedia:     // 无效媒体
@@ -539,6 +620,12 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     path.addRoundedRect(rect(), 20, 20);
     setMask(QRegion(path.toFillPolygon().toPolygon()));
 
+    if (m_emptyOverlayLabel) {
+        // 让 overlay 始终覆盖窗口区域，文本自然居中
+        m_emptyOverlayLabel->setGeometry(this->rect());
+        m_emptyOverlayLabel->raise();
+    }
+
     UpdateMusicListPosition();
     updatalyricsListWidget();
 }
@@ -546,6 +633,38 @@ void MainWindow::resizeEvent(QResizeEvent *event)
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
     // if(obj == ui->lyricsListWidget) qDebug() << "eventFilter:" << obj << event->type();
+    // 播放列表弹出后：点击主窗口其它任何地方自动隐藏（应用级事件过滤）
+    if (event->type() == QEvent::MouseButtonPress && m_musicplaylist && m_musicplaylist->isVisible()) {
+        QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() == Qt::LeftButton) {
+            const QPoint globalPos = mouseEvent->globalPosition().toPoint();
+
+            const QRect playlistGlobalRect(
+                m_musicplaylist->mapToGlobal(QPoint(0, 0)),
+                m_musicplaylist->size()
+            );
+
+            // 点击在播放列表内部：不隐藏
+            if (playlistGlobalRect.contains(globalPos)) {
+                return QMainWindow::eventFilter(obj, event);
+            }
+
+            // 点击在 listButton：交给按钮的 togglePlaylist 逻辑处理
+            if (ui && ui->listButton) {
+                const QRect listBtnGlobalRect(
+                    ui->listButton->mapToGlobal(QPoint(0, 0)),
+                    ui->listButton->size()
+                );
+                if (listBtnGlobalRect.contains(globalPos)) {
+                    return QMainWindow::eventFilter(obj, event);
+                }
+            }
+
+            // 其它任意位置：隐藏播放列表（带动画）
+            hidePlaylistIfVisible();
+        }
+    }
+
     if (obj == ui->Slider) {
         // 鼠标按下：开始一次拖动/点选，不立刻改变播放进度
         if (event->type() == QEvent::MouseButtonPress) {

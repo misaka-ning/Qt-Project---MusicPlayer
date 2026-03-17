@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Multimedia)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Multimedia)
 
-# 将所有源文件（包括新加的 marqueelabel 相关文件）集中列出
+# 将所有源文件列出
 set(PROJECT_SOURCES
     main.cpp
     mainwindow.cpp
@@ -33,8 +33,6 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         mediaplayerpool.h mediaplayerpool.cpp
         lrcparser.h lrcparser.cpp
         playercontroller.h playercontroller.cpp
-
-
     )
 else()
     if(ANDROID)
@@ -44,21 +42,28 @@ else()
     endif()
 endif()
 
-# 链接 Qt 库（动态使用 Qt${QT_VERSION_MAJOR} 前缀，兼容 Qt5/6）
+# 链接 Qt 库
 target_link_libraries(MusicPlayer PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Multimedia
 )
 
-# **关键修复**：显式添加当前源目录到包含路径
-# 确保编译器能找到 marqueelabel.h（尤其对于生成的 ui_mainwindow.h 中的 #include）
+# 添加当前源目录到包含路径
 target_include_directories(MusicPlayer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-# 设置 macOS/iOS 相关属性（可选）
+# ========== 新增：根据构建类型设置编译定义 ==========
+# Release 模式下禁用 qDebug / qWarning 输出
+target_compile_definitions(MusicPlayer PRIVATE
+    $<$<CONFIG:Release>:QT_NO_DEBUG_OUTPUT>
+    $<$<CONFIG:Release>:QT_NO_WARNING_OUTPUT>
+)
+# ==================================================
+
+# 设置 macOS/iOS 相关属性
 if(QT_VERSION VERSION_LESS 6.1.0)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.MusicPlayer)
 else()
-  set(BUNDLE_ID_OPTION)  # 空值，避免未定义
+  set(BUNDLE_ID_OPTION)
 endif()
 set_target_properties(MusicPlayer PROPERTIES
     ${BUNDLE_ID_OPTION}

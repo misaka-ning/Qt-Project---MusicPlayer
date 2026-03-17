@@ -40,5 +40,6 @@
         <file>res/shuffle play.png</file>
         <file>res/stop.png</file>
         <file>res/Windowed.png</file>
+        <file>res/more.png</file>
     </qresource>
 </RCC>

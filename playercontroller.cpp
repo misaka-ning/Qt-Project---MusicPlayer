@@ -91,6 +91,7 @@ void PlayerController::InitPlayList(MusicPlaylist *playlist)
 {
     m_musicplaylist = playlist;
     if (!m_musicplaylist) {
+        emit playlistAvailabilityChanged(false);
         return;
     }
 
@@ -138,9 +139,12 @@ void PlayerController::InitPlayList(MusicPlaylist *playlist)
     m_shuffleIndex = 0;
 
     if (!m_musicplaylist->isempty()) {
+        ensureValidPlayIndex();
         m_player->setSource(m_musicplaylist->Geturl(m_playnum));
         m_audioOutput->setVolume(1);
     }
+
+    emit playlistAvailabilityChanged(!m_musicplaylist->isempty());
 }
 
 /**
@@ -158,6 +162,7 @@ void PlayerController::UpdateRandomArray()
     m_shuffleOrder.clear();
     if (size == 0) return;
 
+    ensureValidPlayIndex();
     for (int i = 0; i < size; ++i) {
         m_shuffleOrder.append(i);
     }
@@ -168,6 +173,18 @@ void PlayerController::UpdateRandomArray()
     }
 
     m_shuffleIndex = m_shuffleOrder.indexOf(m_playnum);
+    if (m_shuffleIndex < 0) m_shuffleIndex = 0;
+}
+
+bool PlayerController::ensureValidPlayIndex()
+{
+    if (!m_musicplaylist) return false;
+    const int size = m_musicplaylist->Getsize();
+    if (size <= 0) return false;
+
+    if (m_playnum < 0) m_playnum = 0;
+    if (m_playnum >= size) m_playnum = size - 1;
+    return true;
 }
 
 /**
@@ -178,7 +195,8 @@ void PlayerController::UpdateRandomArray()
  */
 void PlayerController::PlaySong()
 {
-    if (!m_musicplaylist) return;
+    if (!m_musicplaylist || m_musicplaylist->isempty()) return;
+    if (!ensureValidPlayIndex()) return;
 
     m_player->setSource(m_musicplaylist->Geturl(m_playnum));
 
@@ -202,11 +220,14 @@ void PlayerController::PlaySong()
 void PlayerController::PlayPrevSong()
 {
     if (!m_musicplaylist || m_musicplaylist->isempty()) return;
+    if (!ensureValidPlayIndex()) return;
     if (m_player->isPlaying()) m_autoplay = true;
 
-    if (m_nextmode == Repeat_Play)
+    // 单曲循环不需要换源文件
+    if(m_nextmode == Repeat_Play)
     {
         m_player->setPosition(1);
+        m_player->play();
         return;
     }
 
@@ -240,11 +261,14 @@ void PlayerController::PlayPrevSong()
 void PlayerController::PlayNextSong()
 {
     if (!m_musicplaylist || m_musicplaylist->isempty()) return;
+    if (!ensureValidPlayIndex()) return;
     if (m_player->isPlaying()) m_autoplay = true;
 
-    if (m_nextmode == Repeat_Play)
+    // 单曲循环不需要换源文件
+    if(m_nextmode == Repeat_Play)
     {
         m_player->setPosition(1);
+        m_player->play();
         return;
     }
 
@@ -274,7 +298,6 @@ void PlayerController::PlayNextSong()
  */
 void PlayerController::MusicEnd()
 {
-    m_autoplay = true;
     if (m_musicplaylist && !m_musicplaylist->isempty()) {
         PlayNextSong();
     }
@@ -306,7 +329,9 @@ void PlayerController::SetPlayMode(nextmode mode)
  */
 void PlayerController::OnChooseMusic(int id)
 {
-    if (!m_musicplaylist) return;
+    if (!m_musicplaylist || m_musicplaylist->isempty()) return;
+    const int size = m_musicplaylist->Getsize();
+    if (id < 0 || id >= size) return;
 
     if (m_nextmode == Loop_Play)
     {

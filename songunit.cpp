@@ -31,6 +31,11 @@ SongUnit::~SongUnit()
     delete ui;
 }
 
+void SongUnit::SetId(int id)
+{
+    m_music_id = id;
+}
+
 void SongUnit::SetPixmap(const QPixmap pix)
 {
     m_music_pixmap = pix;
@@ -61,10 +66,6 @@ void SongUnit::UiUpdate()
 // 鼠标进入SongUnit时触发
 void SongUnit::enterEvent(QEnterEvent *event)
 {
-    setStyleSheet("SongUnit { background-color: lightgray; }");
-    ui->namelabel->setStyleSheet("background-color: lightgray");
-    ui->artistlabel->setStyleSheet("background-color: lightgray");
-
     // 样式已在QSS文件中定义，无需在这里设置
     QWidget::enterEvent(event);
 }
@@ -72,10 +73,6 @@ void SongUnit::enterEvent(QEnterEvent *event)
 // 鼠标离开SongUnit时触发
 void SongUnit::leaveEvent(QEvent *event)
 {
-    setStyleSheet("SongUnit { background-color: white; }");
-    ui->namelabel->setStyleSheet("background-color: white; ");
-    ui->artistlabel->setStyleSheet("background-color: white; ");
-
     // 样式已在QSS文件中定义，无需在这里设置
     QWidget::leaveEvent(event);
 }
