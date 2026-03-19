@@ -3,9 +3,9 @@
 
 #include <QLabel>
 
+/** @brief 设置尺寸策略、背景、最小高度，并同步封面/标题/艺术家到子控件。 */
 void SongUnit::InitUnit()
 {
-    // setFixedSize(400, 80);
     setAutoFillBackground(false);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setMinimumHeight(80);  // 保持最小高度
@@ -17,6 +17,7 @@ void SongUnit::InitUnit()
     ui->artistlabel->setText(m_music_artist);
 }
 
+/** @brief 构造：保存 id/封面/url/标题/艺术家，setupUi 后 InitUnit。 */
 SongUnit::SongUnit(int id, QPixmap pix, QUrl url, QString name, QString artist, QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::SongUnit), m_music_id(id), m_music_pixmap(pix) ,m_music_url(url), m_music_name(name), m_music_artist(artist)
@@ -25,37 +26,13 @@ SongUnit::SongUnit(int id, QPixmap pix, QUrl url, QString name, QString artist, 
     InitUnit();
 }
 
-
+/** @brief 析构：释放 UI。 */
 SongUnit::~SongUnit()
 {
     delete ui;
 }
 
-void SongUnit::SetId(int id)
-{
-    m_music_id = id;
-}
-
-void SongUnit::SetPixmap(const QPixmap pix)
-{
-    m_music_pixmap = pix;
-}
-
-void SongUnit::SetName(const QString name)
-{
-    m_music_name = name;
-}
-
-void SongUnit::SetArtist(const QString artist)
-{
-    m_music_artist = artist;
-}
-
-QUrl SongUnit::Geturl()
-{
-    return m_music_url;
-}
-
+/** @brief 将当前封面、标题、艺术家写入子控件。 */
 void SongUnit::UiUpdate()
 {
     ui->imagelabel->setPixmap(m_music_pixmap);
@@ -63,20 +40,37 @@ void SongUnit::UiUpdate()
     ui->artistlabel->setText(m_music_artist);
 }
 
-// 鼠标进入SongUnit时触发
-void SongUnit::enterEvent(QEnterEvent *event)
+/** @brief 设置列表中的索引（用于 ChooseMusic 信号）。 */
+void SongUnit::SetId(int id)
 {
-    // 样式已在QSS文件中定义，无需在这里设置
-    QWidget::enterEvent(event);
+    m_music_id = id;
 }
 
-// 鼠标离开SongUnit时触发
-void SongUnit::leaveEvent(QEvent *event)
+/** @brief 设置封面图。 */
+void SongUnit::SetPixmap(const QPixmap pix)
 {
-    // 样式已在QSS文件中定义，无需在这里设置
-    QWidget::leaveEvent(event);
+    m_music_pixmap = pix;
 }
 
+/** @brief 设置曲目名称。 */
+void SongUnit::SetName(const QString name)
+{
+    m_music_name = name;
+}
+
+/** @brief 设置艺术家。 */
+void SongUnit::SetArtist(const QString artist)
+{
+    m_music_artist = artist;
+}
+
+/** @brief 返回该单元对应的音乐 URL。 */
+QUrl SongUnit::Geturl()
+{
+    return m_music_url;
+}
+
+/** @brief 点击时发射 ChooseMusic(m_music_id)。 */
 void SongUnit::mouseReleaseEvent(QMouseEvent *event)
 {
     emit ChooseMusic(m_music_id);

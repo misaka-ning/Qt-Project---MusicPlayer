@@ -408,6 +408,12 @@
 			null
 		],
 		[
+			"D:/Qt/MusicPlayer/moremenu.h",
+			"MU",
+			"EWIEGA46WW/moc_moremenu.cpp",
+			null
+		],
+		[
 			"D:/Qt/MusicPlayer/musicplaylist.h",
 			"MU",
 			"EWIEGA46WW/moc_musicplaylist.cpp",
@@ -417,6 +423,12 @@
 			"D:/Qt/MusicPlayer/playercontroller.h",
 			"MU",
 			"EWIEGA46WW/moc_playercontroller.cpp",
+			null
+		],
+		[
+			"D:/Qt/MusicPlayer/playliststore.h",
+			"MU",
+			"EWIEGA46WW/moc_playliststore.cpp",
 			null
 		],
 		[
@@ -507,8 +519,10 @@
 		[ "D:/Qt/MusicPlayer/mainwindow.cpp", "MU", null ],
 		[ "D:/Qt/MusicPlayer/marqueelabel.cpp", "MU", null ],
 		[ "D:/Qt/MusicPlayer/mediaplayerpool.cpp", "MU", null ],
+		[ "D:/Qt/MusicPlayer/moremenu.cpp", "MU", null ],
 		[ "D:/Qt/MusicPlayer/musicplaylist.cpp", "MU", null ],
 		[ "D:/Qt/MusicPlayer/playercontroller.cpp", "MU", null ],
+		[ "D:/Qt/MusicPlayer/playliststore.cpp", "MU", null ],
 		[ "D:/Qt/MusicPlayer/songunit.cpp", "MU", null ]
 	],
 	"UIC_OPTIONS" : [],

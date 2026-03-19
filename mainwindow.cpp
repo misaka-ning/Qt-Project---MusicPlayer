@@ -14,8 +14,10 @@
 #include <QBrush>
 #include <QApplication>
 #include <QGraphicsOpacityEffect>
+#include <QFileDialog>
 #include "songunit.h"
 
+/** @brief 根据是否有歌曲启用/禁用播放相关控件，列表按钮始终可用；空列表时复位播放按钮图标。 */
 void MainWindow::updatePlaybackControlsEnabled(bool enabled)
 {
     if (!ui) return;
@@ -35,6 +37,7 @@ void MainWindow::updatePlaybackControlsEnabled(bool enabled)
     }
 }
 
+/** @brief 显示或隐藏“当前没有加载的音乐”占位标签，显示时置顶。 */
 void MainWindow::updateEmptyOverlayVisible(bool visible)
 {
     if (!m_emptyOverlayLabel) return;
@@ -44,14 +47,10 @@ void MainWindow::updateEmptyOverlayVisible(bool visible)
     }
 }
 
-// 加载样式文件
+/** @brief 从资源 :/style.qss 读取样式表并应用到主窗口。 */
 void MainWindow::loadStyleSheet()
 {
-    // 获取应用程序目录
-    QString appDir = QCoreApplication::applicationDirPath();
-    QString stylePath = ":/style.qss";
-
-    QFile styleFile(stylePath);
+    QFile styleFile(":/style.qss");
 
     if (styleFile.open(QIODevice::ReadOnly)) {
         QString styleSheet = QString::fromUtf8(styleFile.readAll());
@@ -60,19 +59,13 @@ void MainWindow::loadStyleSheet()
     }
 }
 
-// 初始化主窗口
+/** @brief 初始化主窗口：标题、大小、无边框、样式、封面尺寸、空列表 overlay、进度条与窗口状态、事件过滤器。 */
 void MainWindow::InitWindow()
 {
     setWindowTitle("MusicPlayer");
     this->resize(1235, 833);
 
-    // 禁用默认标题栏
     setWindowFlags(Qt::FramelessWindowHint);
-    
-    // 启用透明背景，支持圆角效果
-    // setAttribute(Qt::WA_TranslucentBackground);
-
-    // 禁用自动背景填充
     setAutoFillBackground(false);
 
     // 加载样式表
@@ -101,22 +94,33 @@ void MainWindow::InitWindow()
     m_ignoreSliderUpdate = false;
     m_pendingSeek = -1;
     m_isDragging = false;
+    m_moremenuwindow = new MoreMenu(this);
+    m_moremenuwindow->hide();
+    connect(m_moremenuwindow, &MoreMenu::addMusicClicked, this, &MainWindow::onAddMusicFromMoreMenu);
 
     // 初始化窗口调整大小相关变量
     m_isResizing = false;
     m_resizeEdge = NoEdge;
 
     ui->Slider->installEventFilter(this);
-    // 为主窗口安装事件过滤器
     this->installEventFilter(this);
-
-    // 应用级事件过滤：用于捕获“点击播放列表外部自动隐藏”
     if (qApp) {
         qApp->installEventFilter(this);
     }
 }
 
-// 初始化所有按钮
+void MainWindow::onAddMusicFromMoreMenu()
+{
+    if (!m_playerController) return;
+
+    const QString filter = QStringLiteral("Audio Files (*.mp3 *.wav *.flac *.aac *.ogg *.m4a *.wma);;All Files (*.*)");
+    const QStringList files = QFileDialog::getOpenFileNames(this, QStringLiteral("选择音乐文件"), QString(), filter);
+    if (files.isEmpty()) return;
+
+    m_playerController->AddLocalFiles(files);
+}
+
+/** @brief 设置各按钮图标并连接信号：模式切换、上一首/下一首、播放/暂停、列表、最小化/最大化/关闭。 */
 void MainWindow::InitButtons()
 {
     InitButtonIcon(ui->prevButton, ":/res/prev song.png");
@@ -129,86 +133,32 @@ void MainWindow::InitButtons()
     InitButtonIcon(ui->closeButton, ":/res/close.png");
     InitButtonIcon(ui->moreButton, ":/res/more.png");
 
-    // 实现循环模式按钮功能
     connect(ui->modeButton, &QPushButton::clicked, this, [this](){
         if (!m_playerController) return;
         nextmode mode = m_playerController->GetPlayMode();
-        switch(mode)
-        {
-            case(List_Play):
-            {
-                m_playerController->SetPlayMode(Repeat_Play);
-                InitButtonIcon(ui->modeButton, ":/res/repeat play.png");
-            }
-            break;
-            case(Loop_Play):
-            {
-                m_playerController->SetPlayMode(List_Play);
-                InitButtonIcon(ui->modeButton, ":/res/list play.png");
-            }
-            break;
-            case(Repeat_Play):
-            {
-                m_playerController->SetPlayMode(Loop_Play);
-                InitButtonIcon(ui->modeButton, ":/res/loop play.png");
-            }
-            break;
-        }
+        if (mode == List_Play) { m_playerController->SetPlayMode(Repeat_Play); InitButtonIcon(ui->modeButton, ":/res/repeat play.png"); }
+        else if (mode == Loop_Play) { m_playerController->SetPlayMode(List_Play); InitButtonIcon(ui->modeButton, ":/res/list play.png"); }
+        else { m_playerController->SetPlayMode(Loop_Play); InitButtonIcon(ui->modeButton, ":/res/loop play.png"); }
     });
-
-    // 实现上一首按钮功能
-    connect(ui->prevButton, &QPushButton::clicked, this, [this](){
-        if (m_playerController) m_playerController->PlayPrevSong();
-    });
-    // 实现下一首按钮功能
-    connect(ui->nextButton, &QPushButton::clicked, this, [this](){
-        if (m_playerController) m_playerController->PlayNextSong();
-    });
-
-    // 实现使用playButton按钮控制音乐暂停、播放功能
+    connect(ui->prevButton, &QPushButton::clicked, this, [this](){ if (m_playerController) m_playerController->PlayPrevSong(); });
+    connect(ui->nextButton, &QPushButton::clicked, this, [this](){ if (m_playerController) m_playerController->PlayNextSong(); });
     connect(ui->playButton, &QPushButton::clicked, this, [this](){
-        if(!m_playerController) return;
+        if (!m_playerController) return;
         QMediaPlayer *player = m_playerController->GetPlayer();
-        if(player->isPlaying())
-        {
-            player->pause();
-            InitButtonIcon(ui->playButton, ":/res/play.png");
-        }
-        else
-        {
-            player->play();
-            InitButtonIcon(ui->playButton, ":/res/stop.png");
-        }
+        if (player->isPlaying()) { player->pause(); InitButtonIcon(ui->playButton, ":/res/play.png"); }
+        else { player->play(); InitButtonIcon(ui->playButton, ":/res/stop.png"); }
     });
-
-    // 实现点击listButton时，弹出或关闭音乐播放列表窗口（带动画）
-    connect(ui->listButton, &QPushButton::clicked, this, [this](){
-        togglePlaylist();
-    });
-
-    // 实现最小化按钮功能
-    connect(ui->minimizeButton, &QPushButton::clicked, this, [this](){
-        this->showMinimized();
-    });
-
-    // 实现最大化/窗口化按钮功能
+    connect(ui->listButton, &QPushButton::clicked, this, [this](){ togglePlaylist(); });
+    connect(ui->minimizeButton, &QPushButton::clicked, this, [this](){ showMinimized(); });
     connect(ui->maximizeButton, &QPushButton::clicked, this, [this](){
-        if (this->isMaximized()) {
-            this->showNormal();
-            InitButtonIcon(ui->maximizeButton, ":/res/Maximize.png");
-        } else {
-            this->showMaximized();
-            InitButtonIcon(ui->maximizeButton, ":/res/Windowed.png");
-        }
+        if (isMaximized()) { showNormal(); InitButtonIcon(ui->maximizeButton, ":/res/Maximize.png"); }
+        else { showMaximized(); InitButtonIcon(ui->maximizeButton, ":/res/Windowed.png"); }
     });
-
-    // 实现关闭按钮功能
-    connect(ui->closeButton, &QPushButton::clicked, this, [this](){
-        this->close();
-    });
+    connect(ui->closeButton, &QPushButton::clicked, this, [this](){ close(); });
+    connect(ui->moreButton, &QPushButton::clicked, this, &MainWindow::moremenubuttonclick);
 }
 
-// 初始化按钮图标
+/** @brief 设置按钮固定 30x30 及图标与图标尺寸。 */
 void MainWindow::InitButtonIcon(QPushButton *button, const QString & path)
 {
     button->setFixedSize(30, 30);
@@ -216,24 +166,13 @@ void MainWindow::InitButtonIcon(QPushButton *button, const QString & path)
     button->setIconSize(QSize(button->width(), button->height()));
 }
 
-// 初始化播放列表
+/** @brief 创建 MusicList 目录（若不存在）、MusicPlaylist 控件，更新位置并交给 PlayerController 初始化。 */
 void MainWindow::InitPlayList()
 {
-    // 在文件同路径中找到MusicList文件夹
-    QString exeDir = QCoreApplication::applicationDirPath();
-    QString musicListPath = exeDir + "/MusicList";
+    QString musicListPath = QCoreApplication::applicationDirPath() + "/MusicList";
     QDir dir;
-
-    // 检查文件夹是否存在，如果不存在则创建
-    if (!dir.exists(musicListPath)) {
-        if (dir.mkdir(musicListPath)) {
-            qDebug() << "MusicList 文件夹创建成功：" << musicListPath;
-        } else {
-            qDebug() << "错误：无法创建 MusicList 文件夹！";
-        }
-    } else {
-        qDebug() << "MusicList 文件夹已存在：" << musicListPath;
-    }
+    if (!dir.exists(musicListPath))
+        dir.mkdir(musicListPath);
 
     m_musicplaylist = new MusicPlaylist(this);
     m_musicplaylist->hide();
@@ -243,35 +182,26 @@ void MainWindow::InitPlayList()
     }
 }
 
-// 初始化播放列表
+/** @brief 创建 LrcParser、连接 positionChanged、设置歌词列表滚动条与滚轮定时器、点击槽、事件过滤器。 */
 void MainWindow::InitLrcParser()
 {
-    // 歌词解析对象
     m_lrcParser = new LrcParser(this);
-    if (m_playerController) {
+    if (m_playerController)
         connect(m_playerController->GetPlayer(), &QMediaPlayer::positionChanged, this, &MainWindow::onPositionChanged);
-    }
 
     ui->lyricsListWidget->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     ui->lyricsListWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    
-    // 初始化鼠标滚轮定时器
     m_wheelTimer = new QTimer(this);
     m_wheelTimer->setSingleShot(true);
-    m_wheelTimer->setInterval(3000); // 3秒
+    m_wheelTimer->setInterval(3000);
     connect(m_wheelTimer, &QTimer::timeout, this, &MainWindow::onWheelTimerTimeout);
-    
-    // 连接歌词点击信号
     connect(ui->lyricsListWidget, &QListWidget::clicked, this, &MainWindow::onLyricsListWidgetClicked);
-    
-    // 安装事件过滤器以捕获鼠标滚轮事件
     ui->lyricsListWidget->installEventFilter(this);
-    // 安装事件过滤器到视口
     ui->lyricsListWidget->viewport()->installEventFilter(this);
-    
     m_manualScroll = false;
 }
 
+/** @brief 根据当前窗口宽高计算播放列表目标位置与高度并设置。 */
 void MainWindow::UpdateMusicListPosition()
 {
     int window_width = this->width();
@@ -285,6 +215,7 @@ void MainWindow::UpdateMusicListPosition()
     }
 }
 
+/** @brief 若播放列表可见则带动画隐藏，否则先更新位置再带动画显示。 */
 void MainWindow::togglePlaylist()
 {
     if (!m_musicplaylist) return;
@@ -297,6 +228,7 @@ void MainWindow::togglePlaylist()
     }
 }
 
+/** @brief 若播放列表当前可见则带动画隐藏。 */
 void MainWindow::hidePlaylistIfVisible()
 {
     if (!m_musicplaylist) return;
@@ -304,13 +236,12 @@ void MainWindow::hidePlaylistIfVisible()
     m_musicplaylist->hideAnimated();
 }
 
+/** @brief 构造：setupUi、InitWindow、创建 PlayerController、连接可用性信号、InitButtons/PlayList/LrcParser、连接播放器与列表信号、初始化 overlay 与控件状态。 */
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-
-    // 初始化
     InitWindow();
     m_playerController = new PlayerController(this);
 
@@ -345,39 +276,40 @@ MainWindow::MainWindow(QWidget *parent)
     updatePlaybackControlsEnabled(hasSongs);
 }
 
+/** @brief 槽：播放时长变化时设置进度条范围，根据 duration 启用/禁用。 */
 void MainWindow::updateSliderRange(qint64 duration)
 {
     ui->Slider->setRange(0, static_cast<int>(duration));
     ui->Slider->setEnabled(duration > 0);
 }
 
+/** @brief 根据窗口宽度设置歌词列表控件高度（宽的一半）。 */
 void MainWindow::updatalyricsListWidget()
 {
     int window_width = this->width();
     ui->lyricsListWidget->setFixedHeight(window_width / 2);
 }
 
+/** @brief 槽：播放位置变化时同步到进度条；拖动或 ignore 窗口内不更新。 */
 void MainWindow::updateSliderPosition(qint64 position)
 {
-    // 当用户按住进度条拖动，或刚刚手动 seek 完成时，不去更新 UI，避免来回“抢位置”
-    if (m_sliderPressed || m_ignoreSliderUpdate) {
-        return;
-    }
-
+    if (m_sliderPressed || m_ignoreSliderUpdate) return;
     ui->Slider->setValue(static_cast<int>(position));
 }
 
+/** 占位槽：进度条 seek 在 eventFilter 的 MouseButtonRelease 中统一处理。 */
 void MainWindow::onProgressSliderMoved(int value)
 {
     Q_UNUSED(value);
-    // 拖动时暂时不直接设置播放器位置，统一在鼠标释放时处理
 }
 
+/** @brief 析构：释放 UI。 */
 MainWindow::~MainWindow()
 {
     delete ui;
 }
 
+/** @brief 根据音乐路径查找同目录同名 .lrc，解析后填充歌词列表或显示“无歌词”；重置手动滚动并停止滚轮定时器。 */
 void MainWindow::loadLyrics(const QString &musicFilePath)
 {
     QFileInfo info(musicFilePath);
@@ -421,6 +353,7 @@ void MainWindow::loadLyrics(const QString &musicFilePath)
     m_wheelTimer->stop();
 }
 
+/** @brief 槽：播放位置变化时高亮对应歌词行，非手动滚动时自动居中。 */
 void MainWindow::onPositionChanged(qint64 position)
 {
     if (m_lyrics.isEmpty()) return;
@@ -441,9 +374,9 @@ void MainWindow::onPositionChanged(qint64 position)
     }
 }
 
+/** @brief 槽：点击某行歌词时跳转到对应时间并短暂忽略 positionChanged，居中该行。 */
 void MainWindow::onLyricsListWidgetClicked(QModelIndex index)
 {
-    // 确保点击的索引在有效范围内
     if (index.row() >= 0 && index.row() < m_lyrics.size()) {
         // 获取点击行对应的时间
         qint64 time = m_lyrics[index.row()].time;
@@ -465,9 +398,9 @@ void MainWindow::onLyricsListWidgetClicked(QModelIndex index)
     }
 }
 
+/** @brief 槽：滚轮定时器超时后恢复自动跟随，将歌词列表滚动到当前播放行居中。 */
 void MainWindow::onWheelTimerTimeout()
 {
-    // 5秒无操作后，恢复自动居中显示当前播放歌词;
     m_manualScroll = false;
     if (!m_lyrics.isEmpty() && m_playerController) {
         qint64 position = m_playerController->GetPlayer()->position();
@@ -478,68 +411,43 @@ void MainWindow::onWheelTimerTimeout()
     }
 }
 
+/** @brief 应用媒体加载前记录的待 seek 进度，短暂忽略 positionChanged 后清除 m_pendingSeek。 */
+void MainWindow::applyPendingSeek()
+{
+    if (m_pendingSeek < 0 || !m_playerController) return;
+    m_playerController->GetPlayer()->setPosition(m_pendingSeek);
+    m_ignoreSliderUpdate = true;
+    QTimer::singleShot(150, this, [this]() { m_ignoreSliderUpdate = false; });
+    m_pendingSeek = -1;
+}
 
-
-// 媒体状态处理
+/** 媒体状态变化：LoadedMedia 时更新元数据并应用 pendingSeek；EndOfMedia 且未拖动时自动下一首。 */
 void MainWindow::StatusChanged(QMediaPlayer::MediaStatus status)
 {
-    // handleCursor(status);
-
     switch (status) {
-    case QMediaPlayer::NoMedia:          // 无媒体
+    case QMediaPlayer::NoMedia:
+    case QMediaPlayer::LoadingMedia:
+    case QMediaPlayer::BufferingMedia:
+    case QMediaPlayer::StalledMedia:
+    case QMediaPlayer::InvalidMedia:
         break;
-    case QMediaPlayer::LoadingMedia:     // 正在加载媒体
-        break;
-    case QMediaPlayer::LoadedMedia:      // 已加载媒体
+    case QMediaPlayer::LoadedMedia:
         UpdateMetadata();
-
-        // 如果在媒体加载过程中用户已经拖动过一次进度条，这里补一次 seek
-        if (m_pendingSeek >= 0 && m_playerController) {
-            QMediaPlayer *player = m_playerController->GetPlayer();
-            player->setPosition(m_pendingSeek);
-
-            // 应用完毕后清除，并短暂屏蔽 positionChanged，防止“回弹”
-            m_ignoreSliderUpdate = true;
-            QTimer::singleShot(150, this, [this]() {
-                m_ignoreSliderUpdate = false;
-            });
-
-            m_pendingSeek = -1;
-        }
+        applyPendingSeek();
         break;
-    case QMediaPlayer::BufferingMedia:   // 正在缓冲媒体
+    case QMediaPlayer::BufferedMedia:
+        applyPendingSeek();
         break;
-    case QMediaPlayer::BufferedMedia:    // 缓冲完成，可播放
-        // 理论上 LoadedMedia 分支已经处理 pendingSeek，这里只是兜底
-        if (m_pendingSeek >= 0 && m_playerController) {
-            QMediaPlayer *player = m_playerController->GetPlayer();
-            player->setPosition(m_pendingSeek);
-
-            m_ignoreSliderUpdate = true;
-            QTimer::singleShot(150, this, [this]() {
-                m_ignoreSliderUpdate = false;
-            });
-
-            m_pendingSeek = -1;
-        }
-        break;
-    case QMediaPlayer::StalledMedia:     // 播放停滞（缓冲不足）
-        break;
-    case QMediaPlayer::EndOfMedia:       // 已到达媒体末尾
-        // 如果用户正在按住进度条拖动，则先不切到下一首，
-        // 等鼠标释放时再根据最终位置决定是停在当前还是跳到下一曲
+    case QMediaPlayer::EndOfMedia:
         if (!m_sliderPressed) {
-            // 正常播放结束时，自动切换到下一首，并自动开始播放
             m_playerController->SetAutoPlay(true);
             MusicEnd();
         }
         break;
-    case QMediaPlayer::InvalidMedia:     // 无效媒体
-        break;
     }
 }
 
-// 更新音乐元数据
+/** @brief 从当前播放器读取元数据，更新封面/标题/艺术家标签及歌词列表。 */
 void MainWindow::UpdateMetadata()
 {
     if (!m_playerController) return;
@@ -589,21 +497,13 @@ void MainWindow::UpdateMetadata()
     }
 }
 
+/** 播放状态变化（预留，可按需更新 UI）。 */
 void MainWindow::StateChange(QMediaPlayer::PlaybackState state)
 {
-    switch (state) {
-    case QMediaPlayer::StoppedState:
-        // MusicEnd();
-        break;
-    case QMediaPlayer::PlayingState:
-
-        break;
-    case QMediaPlayer::PausedState:
-
-        break;
-    }
+    Q_UNUSED(state);
 }
 
+/** @brief 当前曲目结束，通知 PlayerController 切下一首。 */
 void MainWindow::MusicEnd()
 {
     if (m_playerController) {
@@ -611,11 +511,10 @@ void MainWindow::MusicEnd()
     }
 }
 
+/** @brief 窗口大小变化时重绘圆角遮罩、更新空列表 overlay 几何、播放列表位置与歌词列表高度。 */
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
-
-    // 绘制带圆角的背景
     QPainterPath path;
     path.addRoundedRect(rect(), 20, 20);
     setMask(QRegion(path.toFillPolygon().toPolygon()));
@@ -630,10 +529,10 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     updatalyricsListWidget();
 }
 
+/** @brief 事件过滤：播放列表外点击隐藏、进度条按下/释放 seek、歌词滚轮、窗口拖拽与边缘缩放。 */
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
-    // if(obj == ui->lyricsListWidget) qDebug() << "eventFilter:" << obj << event->type();
-    // 播放列表弹出后：点击主窗口其它任何地方自动隐藏（应用级事件过滤）
+    // 播放列表弹出后：点击主窗口其它区域自动隐藏
     if (event->type() == QEvent::MouseButtonPress && m_musicplaylist && m_musicplaylist->isVisible()) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
         if (mouseEvent->button() == Qt::LeftButton) {
@@ -667,13 +566,8 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 
     if (obj == ui->Slider) {
         // 鼠标按下：开始一次拖动/点选，不立刻改变播放进度
-        if (event->type() == QEvent::MouseButtonPress) {
+        if (event->type() == QEvent::MouseButtonPress)
             m_sliderPressed = true;
-            // 让 QSlider 自己处理按下事件（包括点选行为）
-            // return QMainWindow::eventFilter(obj, event);
-        }
-
-        // 鼠标释放：本次拖动/点选结束，此时统一设置播放器 position
         if (event->type() == QEvent::MouseButtonRelease && m_sliderPressed) {
             QSlider *slider = ui->Slider;
 
@@ -704,21 +598,13 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
             }
 
             // 如果释放位置在末尾，视为用户主动把歌拖到末尾，此时再切到下一首
-            if (value >= slider->maximum()) {
+            if (value >= slider->maximum())
                 MusicEnd();
-            }
-
-            // 让 QSlider 正常收到 release，避免内部状态（isSliderDown 等）卡住
-            // return QMainWindow::eventFilter(obj, event);
         }
     }
-    
 
-
-    // 处理歌词列表的鼠标滚轮事件
     if ((obj == ui->lyricsListWidget || obj == ui->lyricsListWidget->viewport())
         && event->type() == QEvent::Wheel) {
-        // qDebug() << "滚轮事件触发，启动定时器";
         m_manualScroll = true;
         m_wheelTimer->start();
         return false;   // 允许事件继续传递给 QListWidget，使其能够滚动
@@ -779,7 +665,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
     return QMainWindow::eventFilter(obj, event);
 }
 
-// 根据鼠标位置获取边缘类型
+/** @brief 根据鼠标在窗口内的位置返回可拖拽边缘（左/右/上/下及其组合）。 */
 MainWindow::Edge MainWindow::getEdge(const QPoint &pos)
 {
     Edge edge = NoEdge;
@@ -806,7 +692,7 @@ MainWindow::Edge MainWindow::getEdge(const QPoint &pos)
     return edge;
 }
 
-// 根据边缘类型更新鼠标光标
+/** @brief 根据边缘类型设置窗口光标（水平/垂直/对角箭头）。 */
 void MainWindow::updateCursor(Edge edge)
 {
     Qt::CursorShape cursor = Qt::ArrowCursor;
@@ -836,7 +722,7 @@ void MainWindow::updateCursor(Edge edge)
     this->setCursor(cursor);
 }
 
-// 开始调整大小
+/** @brief 开始调整大小时记录边缘、鼠标位置与当前窗口几何。 */
 void MainWindow::startResize(Edge edge, const QPoint &pos)
 {
     m_isResizing = true;
@@ -845,7 +731,7 @@ void MainWindow::startResize(Edge edge, const QPoint &pos)
     m_resizeStartGeometry = this->geometry();
 }
 
-// 执行调整大小
+/** @brief 根据当前鼠标位置与起始几何、边缘计算新几何并 setGeometry，保证不小于最小尺寸。 */
 void MainWindow::performResize(const QPoint &pos)
 {
     if (!m_isResizing) return;
@@ -880,6 +766,25 @@ void MainWindow::performResize(const QPoint &pos)
     // 更新起始位置为当前位置，用于连续调整
     m_resizeStartPos = pos;
     m_resizeStartGeometry = geometry;
+}
+
+/** @brief 槽：当按下moreButton按钮时触发。 */
+void MainWindow::moremenubuttonclick()
+{
+    if(m_moremenuwindow)
+    {
+        if(m_moremenuwindow->isVisible())
+        {
+            m_moremenuwindow->hide();
+        }
+        else
+        {
+            int target_x = ui->moreButton->x() + ui->Controlwidget->x() + ui->toolWidget->x();
+            int target_y = ui->moreButton->y() + ui->Controlwidget->y() + ui->toolWidget->y() - 50;
+            m_moremenuwindow->move(target_x, target_y);
+            m_moremenuwindow->show();
+        }
+    }
 }
 
 

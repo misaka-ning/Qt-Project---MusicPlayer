@@ -9,6 +9,7 @@ D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/
   D:/Qt/6.8.3/mingw_64/include/QtCore/QSize \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QSizeF \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QString \
+  D:/Qt/6.8.3/mingw_64/include/QtCore/QStringList \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QUrl \
   D:/Qt/6.8.3/mingw_64/include/QtCore/QVector \
   D:/Qt/6.8.3/mingw_64/include/QtCore/q20functional.h \
@@ -210,6 +211,7 @@ D:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/
   D:/Qt/6.8.3/mingw_64/include/QtWidgets/qwidget.h \
   D:/Qt/MusicPlayer/mediaplayerpool.h \
   D:/Qt/MusicPlayer/musicplaylist.h \
+  D:/Qt/MusicPlayer/playliststore.h \
   D:/Qt/MusicPlayer/songunit.h \
   D:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/algorithm \
   D:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/array \

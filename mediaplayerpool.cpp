@@ -1,13 +1,11 @@
 #include "MediaPlayerPool.h"
 #include <QMediaMetaData>
+#include <QTimer>
 #include <QDebug>
 
-/*
- *  采用并发式的对象池架构进程会崩溃，有bug不能解决
- *  但现在一次只从对象池中取出一个工作单元加载音乐程序就能跑了
- *  既然能跑，暂时就这样写了，以后可以升级成使用taglib库的方法
- */
-
+/** @brief 创建 maxConcurrent 个 Worker，每个连接 metaDataChanged/errorOccurred；
+ *  任务完成或失败时回收 worker 并延迟调用 start() 避免重入；
+ *  start() 内 while 分配所有空闲 worker 实现并发。 */
 MediaPlayerPool::MediaPlayerPool(int maxConcurrent, QObject *parent)
     : QObject(parent), m_maxConcurrent(maxConcurrent)
 {
@@ -18,8 +16,7 @@ MediaPlayerPool::MediaPlayerPool(int maxConcurrent, QObject *parent)
         m_workers.append(worker);
         m_idleWorkers.enqueue(worker);
 
-        // 当这个工作单元完成读取，通过发射taskFinished信号更新musicplaylist的显示
-        connect(worker->player, &QMediaPlayer::metaDataChanged, this,[this, worker]() {
+        connect(worker->player, &QMediaPlayer::metaDataChanged, this, [this, worker]() {
             if (!worker->busy) return;
             int taskId = worker->currentTask.id;
             const auto &meta = worker->player->metaData();
@@ -45,7 +42,7 @@ MediaPlayerPool::MediaPlayerPool(int maxConcurrent, QObject *parent)
 
             emit taskFinished(taskId, cover, title, artist);
             releaseWorker(worker);
-            start();
+            QTimer::singleShot(0, this, [this](){ start(); });
         });
 
         connect(worker->player, &QMediaPlayer::errorOccurred, this,
@@ -54,35 +51,29 @@ MediaPlayerPool::MediaPlayerPool(int maxConcurrent, QObject *parent)
                     int taskId = worker->currentTask.id;
                     emit taskFailed(taskId, errorString);
                     releaseWorker(worker);
-                    start();
+                    QTimer::singleShot(0, this, [this](){ start(); });
                 });
     }
 }
 
 MediaPlayerPool::~MediaPlayerPool() {}
 
-// 添加一个任务
+/** @brief 将 (url, taskId) 入队。 */
 void MediaPlayerPool::addTask(const QUrl &url, int taskId)
 {
     m_pendingTasks.enqueue({url, taskId});
-    // start(); // 立即尝试分配任务
 }
 
-// 开始一轮待处理任务的处理
+/** @brief 若有空闲 Worker 与待处理任务则全部分配（并发）；完成/失败回调中通过 singleShot 延迟再调 start 避免重入。 */
 void MediaPlayerPool::start()
 {
-    if(!m_idleWorkers.isEmpty() && !m_pendingTasks.isEmpty())
-    {
+    while (!m_idleWorkers.isEmpty() && !m_pendingTasks.isEmpty()) {
         Worker *worker = m_idleWorkers.dequeue();
         assignTask(worker);
     }
-    // while (!m_idleWorkers.isEmpty() && !m_pendingTasks.isEmpty()) {
-    //     Worker *worker = m_idleWorkers.dequeue();
-    //     assignTask(worker);
-    // }
 }
 
-// 分配任务
+/** @brief 从 m_pendingTasks 取一任务，标记 worker 忙并 setSource。 */
 void MediaPlayerPool::assignTask(Worker *worker)
 {
     if (m_pendingTasks.isEmpty()) return;
@@ -92,7 +83,7 @@ void MediaPlayerPool::assignTask(Worker *worker)
     worker->player->setSource(task.url);
 }
 
-// 回收工作单元
+/** @brief 标记 worker 空闲并重新入队，供下次 start 使用。 */
 void MediaPlayerPool::releaseWorker(Worker *worker)
 {
     worker->busy = false;

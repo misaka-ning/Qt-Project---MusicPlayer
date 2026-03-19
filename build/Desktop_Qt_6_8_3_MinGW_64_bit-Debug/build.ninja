@@ -121,6 +121,22 @@ build CMakeFiles/MusicPlayer.dir/playercontroller.cpp.obj: CXX_COMPILER__MusicPl
   OBJECT_DIR = CMakeFiles\MusicPlayer.dir
   OBJECT_FILE_DIR = CMakeFiles\MusicPlayer.dir
 
+build CMakeFiles/MusicPlayer.dir/moremenu.cpp.obj: CXX_COMPILER__MusicPlayer_unscanned_Debug D$:/Qt/MusicPlayer/moremenu.cpp || cmake_object_order_depends_target_MusicPlayer
+  DEFINES = -DMINGW_HAS_SECURE_API=1 -DQT_CORE_LIB -DQT_GUI_LIB -DQT_MULTIMEDIA_LIB -DQT_NEEDS_QMAIN -DQT_NETWORK_LIB -DQT_WIDGETS_LIB -DUNICODE -DWIN32 -DWIN64 -D_ENABLE_EXTENDED_ALIGNED_STORAGE -D_UNICODE -D_WIN64
+  DEP_FILE = CMakeFiles\MusicPlayer.dir\moremenu.cpp.obj.d
+  FLAGS = -DQT_QML_DEBUG -g -std=gnu++17 -fdiagnostics-color=always
+  INCLUDES = -ID:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/include -ID:/Qt/MusicPlayer -isystem D:/Qt/6.8.3/mingw_64/include/QtCore -isystem D:/Qt/6.8.3/mingw_64/include -isystem D:/Qt/6.8.3/mingw_64/mkspecs/win32-g++ -isystem D:/Qt/6.8.3/mingw_64/include/QtWidgets -isystem D:/Qt/6.8.3/mingw_64/include/QtGui -isystem D:/Qt/6.8.3/mingw_64/include/QtMultimedia -isystem D:/Qt/6.8.3/mingw_64/include/QtNetwork
+  OBJECT_DIR = CMakeFiles\MusicPlayer.dir
+  OBJECT_FILE_DIR = CMakeFiles\MusicPlayer.dir
+
+build CMakeFiles/MusicPlayer.dir/playliststore.cpp.obj: CXX_COMPILER__MusicPlayer_unscanned_Debug D$:/Qt/MusicPlayer/playliststore.cpp || cmake_object_order_depends_target_MusicPlayer
+  DEFINES = -DMINGW_HAS_SECURE_API=1 -DQT_CORE_LIB -DQT_GUI_LIB -DQT_MULTIMEDIA_LIB -DQT_NEEDS_QMAIN -DQT_NETWORK_LIB -DQT_WIDGETS_LIB -DUNICODE -DWIN32 -DWIN64 -D_ENABLE_EXTENDED_ALIGNED_STORAGE -D_UNICODE -D_WIN64
+  DEP_FILE = CMakeFiles\MusicPlayer.dir\playliststore.cpp.obj.d
+  FLAGS = -DQT_QML_DEBUG -g -std=gnu++17 -fdiagnostics-color=always
+  INCLUDES = -ID:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/include -ID:/Qt/MusicPlayer -isystem D:/Qt/6.8.3/mingw_64/include/QtCore -isystem D:/Qt/6.8.3/mingw_64/include -isystem D:/Qt/6.8.3/mingw_64/mkspecs/win32-g++ -isystem D:/Qt/6.8.3/mingw_64/include/QtWidgets -isystem D:/Qt/6.8.3/mingw_64/include/QtGui -isystem D:/Qt/6.8.3/mingw_64/include/QtMultimedia -isystem D:/Qt/6.8.3/mingw_64/include/QtNetwork
+  OBJECT_DIR = CMakeFiles\MusicPlayer.dir
+  OBJECT_FILE_DIR = CMakeFiles\MusicPlayer.dir
+
 build CMakeFiles/MusicPlayer.dir/MusicPlayer_autogen/EWIEGA46WW/qrc_res.cpp.obj: CXX_COMPILER__MusicPlayer_unscanned_Debug D$:/Qt/MusicPlayer/build/Desktop_Qt_6_8_3_MinGW_64_bit-Debug/MusicPlayer_autogen/EWIEGA46WW/qrc_res.cpp || cmake_object_order_depends_target_MusicPlayer
   DEFINES = -DMINGW_HAS_SECURE_API=1 -DQT_CORE_LIB -DQT_GUI_LIB -DQT_MULTIMEDIA_LIB -DQT_NEEDS_QMAIN -DQT_NETWORK_LIB -DQT_WIDGETS_LIB -DUNICODE -DWIN32 -DWIN64 -D_ENABLE_EXTENDED_ALIGNED_STORAGE -D_UNICODE -D_WIN64
   DEP_FILE = CMakeFiles\MusicPlayer.dir\MusicPlayer_autogen\EWIEGA46WW\qrc_res.cpp.obj.d
@@ -137,7 +153,7 @@ build CMakeFiles/MusicPlayer.dir/MusicPlayer_autogen/EWIEGA46WW/qrc_res.cpp.obj:
 #############################################
 # Link the executable MusicPlayer.exe
 
-build MusicPlayer.exe: CXX_EXECUTABLE_LINKER__MusicPlayer_Debug CMakeFiles/MusicPlayer.dir/MusicPlayer_autogen/mocs_compilation.cpp.obj CMakeFiles/MusicPlayer.dir/main.cpp.obj CMakeFiles/MusicPlayer.dir/mainwindow.cpp.obj CMakeFiles/MusicPlayer.dir/marqueelabel.cpp.obj CMakeFiles/MusicPlayer.dir/songunit.cpp.obj CMakeFiles/MusicPlayer.dir/musicplaylist.cpp.obj CMakeFiles/MusicPlayer.dir/mediaplayerpool.cpp.obj CMakeFiles/MusicPlayer.dir/lrcparser.cpp.obj CMakeFiles/MusicPlayer.dir/playercontroller.cpp.obj CMakeFiles/MusicPlayer.dir/MusicPlayer_autogen/EWIEGA46WW/qrc_res.cpp.obj | D$:/Qt/6.8.3/mingw_64/lib/libQt6Widgets.a D$:/Qt/6.8.3/mingw_64/lib/libQt6Multimedia.a D$:/Qt/6.8.3/mingw_64/lib/libQt6Gui.a D$:/Qt/6.8.3/mingw_64/lib/libQt6Network.a D$:/Qt/6.8.3/mingw_64/lib/libQt6Core.a D$:/Qt/6.8.3/mingw_64/lib/libQt6EntryPoint.a || MusicPlayer_autogen MusicPlayer_autogen_timestamp_deps
+build MusicPlayer.exe: CXX_EXECUTABLE_LINKER__MusicPlayer_Debug CMakeFiles/MusicPlayer.dir/MusicPlayer_autogen/mocs_compilation.cpp.obj CMakeFiles/MusicPlayer.dir/main.cpp.obj CMakeFiles/MusicPlayer.dir/mainwindow.cpp.obj CMakeFiles/MusicPlayer.dir/marqueelabel.cpp.obj CMakeFiles/MusicPlayer.dir/songunit.cpp.obj CMakeFiles/MusicPlayer.dir/musicplaylist.cpp.obj CMakeFiles/MusicPlayer.dir/mediaplayerpool.cpp.obj CMakeFiles/MusicPlayer.dir/lrcparser.cpp.obj CMakeFiles/MusicPlayer.dir/playercontroller.cpp.obj CMakeFiles/MusicPlayer.dir/moremenu.cpp.obj CMakeFiles/MusicPlayer.dir/playliststore.cpp.obj CMakeFiles/MusicPlayer.dir/MusicPlayer_autogen/EWIEGA46WW/qrc_res.cpp.obj | D$:/Qt/6.8.3/mingw_64/lib/libQt6Widgets.a D$:/Qt/6.8.3/mingw_64/lib/libQt6Multimedia.a D$:/Qt/6.8.3/mingw_64/lib/libQt6Gui.a D$:/Qt/6.8.3/mingw_64/lib/libQt6Network.a D$:/Qt/6.8.3/mingw_64/lib/libQt6Core.a D$:/Qt/6.8.3/mingw_64/lib/libQt6EntryPoint.a || MusicPlayer_autogen MusicPlayer_autogen_timestamp_deps
   FLAGS = -DQT_QML_DEBUG -g
   LINK_FLAGS = -mwindows
   LINK_LIBRARIES = D:/Qt/6.8.3/mingw_64/lib/libQt6Widgets.a  D:/Qt/6.8.3/mingw_64/lib/libQt6Multimedia.a  D:/Qt/6.8.3/mingw_64/lib/libQt6Gui.a  -ld3d11  -ldxgi  -ldxguid  -ld3d12  D:/Qt/6.8.3/mingw_64/lib/libQt6Network.a  D:/Qt/6.8.3/mingw_64/lib/libQt6Core.a  -lmpr  -luserenv  -lmingw32  D:/Qt/6.8.3/mingw_64/lib/libQt6EntryPoint.a  -lshell32  -lws2_32  -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
@@ -224,7 +240,7 @@ build MusicPlayer_autogen_timestamp_deps: phony
 #############################################
 # Utility command for MusicPlayer_autogen
 
-build MusicPlayer_autogen: phony CMakeFiles/MusicPlayer_autogen MusicPlayer_autogen/include/ui_mainwindow.h MusicPlayer_autogen/include/ui_songunit.h MusicPlayer_autogen/include/ui_musicplaylist.h MusicPlayer_autogen/timestamp MusicPlayer_autogen/mocs_compilation.cpp MusicPlayer_autogen_timestamp_deps
+build MusicPlayer_autogen: phony CMakeFiles/MusicPlayer_autogen MusicPlayer_autogen/include/ui_mainwindow.h MusicPlayer_autogen/include/ui_songunit.h MusicPlayer_autogen/include/ui_musicplaylist.h MusicPlayer_autogen/include/ui_moremenu.h MusicPlayer_autogen/timestamp MusicPlayer_autogen/mocs_compilation.cpp MusicPlayer_autogen_timestamp_deps
 
 
 #############################################
@@ -250,7 +266,7 @@ build MusicPlayer_autogen/EWIEGA46WW/qrc_res.cpp | ${cmake_ninja_workdir}MusicPl
 #############################################
 # Phony custom command for CMakeFiles\MusicPlayer_autogen
 
-build CMakeFiles/MusicPlayer_autogen MusicPlayer_autogen/include/ui_mainwindow.h MusicPlayer_autogen/include/ui_songunit.h MusicPlayer_autogen/include/ui_musicplaylist.h | ${cmake_ninja_workdir}CMakeFiles/MusicPlayer_autogen ${cmake_ninja_workdir}MusicPlayer_autogen/include/ui_mainwindow.h ${cmake_ninja_workdir}MusicPlayer_autogen/include/ui_songunit.h ${cmake_ninja_workdir}MusicPlayer_autogen/include/ui_musicplaylist.h: phony MusicPlayer_autogen/timestamp || MusicPlayer_autogen_timestamp_deps
+build CMakeFiles/MusicPlayer_autogen MusicPlayer_autogen/include/ui_mainwindow.h MusicPlayer_autogen/include/ui_songunit.h MusicPlayer_autogen/include/ui_musicplaylist.h MusicPlayer_autogen/include/ui_moremenu.h | ${cmake_ninja_workdir}CMakeFiles/MusicPlayer_autogen ${cmake_ninja_workdir}MusicPlayer_autogen/include/ui_mainwindow.h ${cmake_ninja_workdir}MusicPlayer_autogen/include/ui_songunit.h ${cmake_ninja_workdir}MusicPlayer_autogen/include/ui_musicplaylist.h ${cmake_ninja_workdir}MusicPlayer_autogen/include/ui_moremenu.h: phony MusicPlayer_autogen/timestamp || MusicPlayer_autogen_timestamp_deps
 
 # =============================================================================
 # Target aliases.

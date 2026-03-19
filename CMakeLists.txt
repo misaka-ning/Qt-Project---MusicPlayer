@@ -30,9 +30,11 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         res.qrc
         songunit.h songunit.cpp songunit.ui
         musicplaylist.h musicplaylist.cpp musicplaylist.ui
-        mediaplayerpool.h mediaplayerpool.cpp
+        MediaPlayerPool.h mediaplayerpool.cpp
         lrcparser.h lrcparser.cpp
         playercontroller.h playercontroller.cpp
+        moremenu.h moremenu.cpp moremenu.ui
+        playliststore.h playliststore.cpp
     )
 else()
     if(ANDROID)

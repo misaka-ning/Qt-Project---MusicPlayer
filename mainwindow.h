@@ -17,12 +17,11 @@
 #include <QLabel>
 #include "musicplaylist.h"
 #include "playercontroller.h"
-#include "LrcParser.h"  // 包含歌词解析类头文件
+#include "lrcparser.h"
+#include "moremenu.h"
 
 QT_BEGIN_NAMESPACE
-namespace Ui {
-class MainWindow;
-}
+namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
 class MainWindow : public QMainWindow
@@ -35,19 +34,16 @@ public:
 
 private:
     Ui::MainWindow *ui;
-
     MusicPlaylist *m_musicplaylist;
     PlayerController *m_playerController;
     QLabel *m_emptyOverlayLabel;
+    bool m_sliderPressed;
+    bool m_ignoreSliderUpdate;
+    qint64 m_pendingSeek;
+    bool m_isDragging;
+    QPointF m_dragStartPos;
+    MoreMenu *m_moremenuwindow;
 
-    bool  m_sliderPressed;       // 当前是否在按住进度条拖动
-    bool  m_ignoreSliderUpdate;  // 在一次主动 seek 之后，短时间内忽略播放器发来的位置更新（防止“回弹”）
-    qint64 m_pendingSeek;        // 如果在媒体还没加载完时进行拖动，记录一个待应用的进度值
-
-    bool m_isDragging;           // 是否正在拖动窗口
-    QPointF m_dragStartPos;       // 拖动开始的位置
-
-    // 窗口调整大小相关变量
     enum Edge {
         NoEdge = 0,
         LeftEdge = 1,
@@ -60,58 +56,54 @@ private:
         BottomRightEdge = BottomEdge | RightEdge
     };
 
-    Edge m_resizeEdge;           // 当前调整大小的边缘
-    bool m_isResizing;           // 是否正在调整大小
-    QPoint m_resizeStartPos;     // 调整大小开始时的鼠标位置
-    QRect m_resizeStartGeometry; // 调整大小开始时的窗口几何形状
-    const int m_resizeBorderWidth = 5; // 调整大小边框宽度
+    Edge m_resizeEdge;
+    bool m_isResizing;
+    QPoint m_resizeStartPos;
+    QRect m_resizeStartGeometry;
+    const int m_resizeBorderWidth = 5;
 
     LrcParser *m_lrcParser;
     QVector<LrcLine> m_lyrics;
-    QTimer *m_wheelTimer;         // 用于检测鼠标滚轮操作后的定时器
-    bool m_manualScroll;          // 是否手动滚动了歌词
-    void loadLyrics(const QString &musicFilePath);  // 加载歌词
-    void updateLyrics(qint64 position);             // 更新歌词显示
+    QTimer *m_wheelTimer;
+    bool m_manualScroll;
 
-    void InitWindow();
-    void loadStyleSheet();
-    void InitButtons();
-    void InitButtonIcon(QPushButton *button, const QString &path);
-    void InitPlayList();
-    void InitLrcParser();
-    void updatePlaybackControlsEnabled(bool enabled);
-    void updateEmptyOverlayVisible(bool visible);
+    void loadLyrics(const QString &musicFilePath);        // 根据音乐路径加载同目录 .lrc
+    void applyPendingSeek();                              // 应用媒体加载前记录的待 seek，并清除
 
-    void UpdateMusicListPosition();
-    void togglePlaylist();
-    void hidePlaylistIfVisible();
-
-    // 窗口调整大小相关函数
-    Edge getEdge(const QPoint &pos);  // 根据鼠标位置获取边缘类型
-    void updateCursor(Edge edge);     // 根据边缘类型更新鼠标光标
-    void startResize(Edge edge, const QPoint &pos); // 开始调整大小
-    void performResize(const QPoint &pos); // 执行调整大小
-
-private slots:
+    void InitWindow();                                    // 初始化窗口：标题、无边框、样式、overlay、事件过滤
+    void loadStyleSheet();                                // 从 :/style.qss 加载并应用样式
+    void InitButtons();                                   // 设置按钮图标并连接信号
+    void InitButtonIcon(QPushButton *button, const QString &path);  // 设置按钮尺寸与图标
+    void InitPlayList();                                  // 创建 MusicList 目录、播放列表控件并交给 PlayerController
+    void InitLrcParser();                                 // 创建 LrcParser、连接 positionChanged 与歌词列表
+    void updatePlaybackControlsEnabled(bool enabled);     // 根据是否有歌曲启用/禁用播放相关控件
+    void updateEmptyOverlayVisible(bool visible);         // 显示或隐藏“当前没有加载的音乐”占位
+    void UpdateMusicListPosition();                       // 根据窗口尺寸更新播放列表位置与高度
+    void togglePlaylist();                                // 切换播放列表显示/隐藏（带动画）
+    void hidePlaylistIfVisible();                         // 若播放列表可见则带动画隐藏
+    Edge getEdge(const QPoint &pos);                      // 根据鼠标位置返回可拖拽边缘
+    void updateCursor(Edge edge);                         // 根据边缘设置窗口光标
+    void startResize(Edge edge, const QPoint &pos);       // 开始调整大小时记录状态
+    void performResize(const QPoint &pos);                // 根据鼠标移动计算并设置新几何
+    void moremenubuttonclick();                           // 按下更多按钮执行操作
 
 private slots:
-    void StatusChanged(QMediaPlayer::MediaStatus status);
-    void StateChange(QMediaPlayer::PlaybackState state);
-    void UpdateMetadata();
-    void MusicEnd();
-
-    void updateSliderPosition(qint64 position);
-    void updateSliderRange(qint64 duration);
-    void updatalyricsListWidget();
-    void onProgressSliderMoved(int value);
-
-    void onPositionChanged(qint64 position);
-    void onLyricsListWidgetClicked(QModelIndex index);
-    void onWheelTimerTimeout();
+    void StatusChanged(QMediaPlayer::MediaStatus status); // 媒体状态变化：Loaded/Buffered 时应用 pendingSeek，EndOfMedia 时自动下一首
+    void StateChange(QMediaPlayer::PlaybackState state);  // 播放状态变化（预留）
+    void UpdateMetadata();                                // 从当前播放器读取元数据并更新封面/标题/艺术家/歌词
+    void MusicEnd();                                      // 当前曲目结束，通知 PlayerController 切下一首
+    void onAddMusicFromMoreMenu();                        // MoreMenu -> 添加音乐
+    void updateSliderPosition(qint64 position);           // 同步播放位置到进度条
+    void updateSliderRange(qint64 duration);              // 设置进度条范围
+    void updatalyricsListWidget();                        // 根据窗口宽度设置歌词列表高度
+    void onProgressSliderMoved(int value);                // 占位槽，seek 在 eventFilter 中处理
+    void onPositionChanged(qint64 position);              // 高亮对应歌词行并自动居中
+    void onLyricsListWidgetClicked(QModelIndex index);    // 点击歌词行跳转时间并居中
+    void onWheelTimerTimeout();                           // 滚轮定时器超时后恢复自动跟随
 
 protected:
-    void resizeEvent(QResizeEvent *event) override;
-    bool eventFilter(QObject *obj, QEvent *event) override;
-
+    void resizeEvent(QResizeEvent *event) override;       // 重绘圆角遮罩、更新 overlay 与列表位置
+    bool eventFilter(QObject *obj, QEvent *event) override;  // 列表外点击隐藏、进度条 seek、歌词滚轮、窗口拖拽与边缘缩放
 };
+
 #endif // MAINWINDOW_H

@@ -1,23 +1,16 @@
-#include "LrcParser.h"
+#include "lrcparser.h"
 #include <QFile>
 #include <QRegularExpression>
 #include <QStringDecoder>
 #include <QMap>
 #include <QTextStream>
 
+/** @brief 无参构造。 */
 LrcParser::LrcParser(QObject *parent) : QObject(parent)
 {
 }
 
-/**
- * @brief 解析LRC歌词文件
- * @param filePath 歌词文件路径
- * @return 解析成功返回true，否则返回false
- *
- * 该函数读取指定路径的文件，尝试多种编码解码歌词内容，
- * 然后使用正则表达式提取时间戳和歌词文本，按时间排序后
- * 存储到成员变量m_lyrics中。同一时间戳的多行歌词会合并。
- */
+/** @brief 解析 LRC 文件：多编码尝试、正则提取 [mm:ss.xx] 与歌词、按时间排序存入 m_lyrics，同时间多行合并。成功返回 true。 */
 bool LrcParser::parseFile(const QString &filePath)
 {
     // 清空旧的歌词数据
@@ -96,12 +89,11 @@ bool LrcParser::parseFile(const QString &filePath)
     return !m_lyrics.isEmpty();
 }
 
+/** @brief 二分查找最后一个 time <= position 的歌词行索引，空列表返回 -1。 */
 int LrcParser::currentIndex(qint64 position) const
 {
     if (m_lyrics.isEmpty())
         return -1;
-
-    // 二分查找最后一个时间 <= position 的索引
     int left = 0, right = m_lyrics.size() - 1;
     int result = -1;
     while (left <= right) {

@@ -1,9 +1,19 @@
 #include "playercontroller.h"
 
 #include <QCoreApplication>
+#include <QFileInfo>
 #include <QDir>
 #include <QRandomGenerator>
 #include <QTimer>
+
+namespace {
+bool isSupportedAudioFile(const QString& filePath)
+{
+    static const QStringList audioSuffixes = {"mp3", "wav", "flac", "aac", "ogg", "m4a", "wma"};
+    const QString suffix = QFileInfo(filePath).suffix().toLower();
+    return audioSuffixes.contains(suffix);
+}
+} // namespace
 
 /**
  * @brief PlayerController 构造函数
@@ -68,6 +78,13 @@ void PlayerController::InitPool()
                 finalCover = QPixmap(":/res/misaka.png");
             }
             m_musicplaylist->updateItem(taskId, finalCover, title, artist);
+
+            const QUrl url = m_musicplaylist->Geturl(taskId);
+            if (url.isValid()) {
+                m_store.load();
+                m_store.markMetadata(url.toString(), finalCover, title, artist);
+                m_store.saveAtomic();
+            }
         }
     });
 
@@ -99,41 +116,86 @@ void PlayerController::InitPlayList(MusicPlaylist *playlist)
         InitPool();
     }
 
-    // 在文件同路径中找到 MusicList 文件夹
-    QString exeDir = QCoreApplication::applicationDirPath();
-    QString musicListPath = exeDir + "/MusicList";
-    QDir dir;
+    m_musicplaylist->clearSongs();
+    m_urlToIndex.clear();
 
-    if (!dir.exists(musicListPath)) {
-        dir.mkdir(musicListPath);
-    }
-
-    // 定义支持的音频格式（只加载这些类型的文件）
-    QStringList audioSuffixes = {"mp3", "wav", "flac", "aac", "ogg", "m4a", "wma"};
-
-    QDir musicDir(musicListPath);
-    QFileInfoList allFiles = musicDir.entryInfoList(QDir::Files);
     int index = 0;
 
-    foreach (const QFileInfo &fileInfo, allFiles) {
-        QString suffix = fileInfo.suffix().toLower();
-        if (!audioSuffixes.contains(suffix))
-            continue;
+    const QPixmap defaultCover(":/res/misaka.png");
 
-        QUrl url = QUrl::fromLocalFile(fileInfo.absoluteFilePath());
+    m_store.load();
+    const auto tracks = m_store.tracks();
 
-        m_musicplaylist->AppendMusic(QPixmap(":/res/misaka.png"), url, "加载中", "加载中");
-        m_urlToIndex[url] = index;
-        if (m_pool) {
-            m_pool->addTask(url, index);
+    for (const auto& t : tracks) {
+        const QString urlString = t.url;
+        if (urlString.isEmpty()) continue;
+
+        const QUrl url(urlString);
+        if (!url.isValid()) continue;
+
+        if (url.isLocalFile()) {
+            const QString localPath = url.toLocalFile();
+            if (!QFileInfo::exists(localPath)) {
+                continue; // 不破坏用户数据：文件不存在先跳过
+            }
         }
 
+        if (t.hasMetadata) {
+            QPixmap cover = m_store.loadCoverForTrack(t);
+            if (cover.isNull()) cover = defaultCover;
+
+            QString title = t.title;
+            if (title.isEmpty()) title = "未知曲目";
+            QString artist = t.artist;
+            if (artist.isEmpty()) artist = "未知艺术家";
+
+            m_musicplaylist->AppendMusic(cover, url, title, artist);
+        } else {
+            m_musicplaylist->AppendMusic(defaultCover, url, "加载中", "加载中");
+            if (m_pool) {
+                m_pool->addTask(url, index);
+            }
+        }
+
+        m_urlToIndex[url] = index;
         ++index;
     }
 
-    if (m_pool) {
-        m_pool->start();
+    // 若没有 playlist.json（或为空），保持兼容：扫描 MusicList 并写入 playlist.json（hasMetadata=false）
+    if (index == 0) {
+        const QString exeDir = QCoreApplication::applicationDirPath();
+        const QString musicListPath = exeDir + "/MusicList";
+        QDir dir;
+        if (!dir.exists(musicListPath)) {
+            dir.mkdir(musicListPath);
+        }
+
+        QDir musicDir(musicListPath);
+        const QFileInfoList allFiles = musicDir.entryInfoList(QDir::Files);
+
+        bool playlistChanged = false;
+        for (const QFileInfo& fileInfo : allFiles) {
+            const QString absPath = fileInfo.absoluteFilePath();
+            if (!isSupportedAudioFile(absPath)) continue;
+
+            const QUrl url = QUrl::fromLocalFile(absPath);
+            m_musicplaylist->AppendMusic(defaultCover, url, "加载中", "加载中");
+            m_urlToIndex[url] = index;
+            if (m_pool) {
+                m_pool->addTask(url, index);
+            }
+
+            m_store.upsertTrack(url.toString());
+            playlistChanged = true;
+
+            ++index;
+        }
+        if (playlistChanged) {
+            m_store.saveAtomic();
+        }
     }
+
+    if (m_pool) m_pool->start();
 
     m_shuffleOrder.clear();
     m_shuffleIndex = 0;
@@ -145,6 +207,60 @@ void PlayerController::InitPlayList(MusicPlaylist *playlist)
     }
 
     emit playlistAvailabilityChanged(!m_musicplaylist->isempty());
+}
+
+void PlayerController::AddLocalFiles(const QStringList& filePaths)
+{
+    if (!m_musicplaylist) return;
+    if (!m_pool) InitPool();
+
+    const bool wasEmpty = m_musicplaylist->isempty();
+    const QPixmap defaultCover(":/res/misaka.png");
+
+    m_store.load();
+    bool playlistChanged = false;
+    int addedCount = 0;
+
+    for (const QString& filePath : filePaths) {
+        if (filePath.trimmed().isEmpty()) continue;
+        if (!QFileInfo::exists(filePath)) continue;
+        if (!isSupportedAudioFile(filePath)) continue;
+
+        const QUrl url = QUrl::fromLocalFile(filePath);
+        if (!url.isValid()) continue;
+        if (m_urlToIndex.contains(url)) continue;
+
+        const int newIndex = m_musicplaylist->Getsize();
+        m_musicplaylist->AppendMusic(defaultCover, url, "加载中", "加载中");
+        m_urlToIndex[url] = newIndex;
+
+        if (m_pool) {
+            m_pool->addTask(url, newIndex);
+        }
+
+        m_store.upsertTrack(url.toString());
+        playlistChanged = true;
+        ++addedCount;
+    }
+
+    if (playlistChanged) {
+        m_store.saveAtomic();
+    }
+
+    if (addedCount > 0 && m_pool) {
+        m_pool->start();
+    }
+
+    if (wasEmpty && !m_musicplaylist->isempty()) {
+        ensureValidPlayIndex();
+        m_player->setSource(m_musicplaylist->Geturl(m_playnum));
+        m_audioOutput->setVolume(1);
+        emit playlistAvailabilityChanged(true);
+    }
+
+    if (addedCount > 0 && m_nextmode == Loop_Play) {
+        UpdateRandomArray();
+    }
 }
 
 /**
@@ -176,6 +292,7 @@ void PlayerController::UpdateRandomArray()
     if (m_shuffleIndex < 0) m_shuffleIndex = 0;
 }
 
+/** @brief 确保 m_playnum 落在 [0, size) 内；空列表返回 false。 */
 bool PlayerController::ensureValidPlayIndex()
 {
     if (!m_musicplaylist) return false;

@@ -3,6 +3,7 @@
 #include "EWIEGA46WW/moc_lrcparser.cpp"
 #include "EWIEGA46WW/moc_mainwindow.cpp"
 #include "EWIEGA46WW/moc_marqueelabel.cpp"
+#include "EWIEGA46WW/moc_moremenu.cpp"
 #include "EWIEGA46WW/moc_musicplaylist.cpp"
 #include "EWIEGA46WW/moc_playercontroller.cpp"
 #include "EWIEGA46WW/moc_songunit.cpp"

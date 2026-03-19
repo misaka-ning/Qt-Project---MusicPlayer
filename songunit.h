@@ -18,13 +18,12 @@ class SongUnit : public QWidget
 public:
     explicit SongUnit(int id, QPixmap pix, QUrl url, QString name = "未知曲目", QString artist = "未知艺术家", QWidget *parent = nullptr);
     ~SongUnit();
-
     void SetId(int id);
     void SetPixmap(const QPixmap pix);
     void SetName(const QString name);
     void SetArtist(const QString artist);
     QUrl Geturl();
-    void UiUpdate();
+    void UiUpdate();              // 将当前封面/名称/艺术家刷新到 UI
 
 private:
     Ui::SongUnit *ui;
@@ -35,15 +34,13 @@ private:
     QString m_music_artist;
     QPixmap m_music_pixmap;
 
-    void InitUnit();
+    void InitUnit();              // 设置尺寸策略、样式与子控件初始内容
 
 protected:
-    void enterEvent(QEnterEvent *event) override;
-    void leaveEvent(QEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
 
 signals:
-    void ChooseMusic(int id);
+    void ChooseMusic(int id);     // 点击该单元时发射，参数为列表索引
 
 };
 

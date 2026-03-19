@@ -11,6 +11,7 @@ MusicPlayer_autogen/timestamp: \
 	D:/Qt/6.8.3/mingw_64/include/QtCore/QSize \
 	D:/Qt/6.8.3/mingw_64/include/QtCore/QSizeF \
 	D:/Qt/6.8.3/mingw_64/include/QtCore/QString \
+	D:/Qt/6.8.3/mingw_64/include/QtCore/QStringList \
 	D:/Qt/6.8.3/mingw_64/include/QtCore/QTimer \
 	D:/Qt/6.8.3/mingw_64/include/QtCore/QUrl \
 	D:/Qt/6.8.3/mingw_64/include/QtCore/QVector \
@@ -456,10 +457,14 @@ MusicPlayer_autogen/timestamp: \
 	D:/Qt/MusicPlayer/marqueelabel.cpp \
 	D:/Qt/MusicPlayer/marqueelabel.h \
 	D:/Qt/MusicPlayer/mediaplayerpool.cpp \
+	D:/Qt/MusicPlayer/moremenu.cpp \
+	D:/Qt/MusicPlayer/moremenu.h \
 	D:/Qt/MusicPlayer/musicplaylist.cpp \
 	D:/Qt/MusicPlayer/musicplaylist.h \
 	D:/Qt/MusicPlayer/playercontroller.cpp \
 	D:/Qt/MusicPlayer/playercontroller.h \
+	D:/Qt/MusicPlayer/playliststore.cpp \
+	D:/Qt/MusicPlayer/playliststore.h \
 	D:/Qt/MusicPlayer/res.qrc \
 	D:/Qt/MusicPlayer/songunit.cpp \
 	D:/Qt/MusicPlayer/songunit.h \
@@ -702,6 +707,7 @@ MusicPlayer_autogen/timestamp: \
 	D:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/vadefs.h \
 	D:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/wchar.h \
 	D:/Qt/MusicPlayer/mainwindow.ui \
+	D:/Qt/MusicPlayer/moremenu.ui \
 	D:/Qt/MusicPlayer/musicplaylist.ui \
 	D:/Qt/MusicPlayer/songunit.ui \
 	D:/Qt/Tools/CMake_64/bin/cmake.exe

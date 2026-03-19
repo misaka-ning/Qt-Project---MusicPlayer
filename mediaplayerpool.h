@@ -8,28 +8,23 @@
 #include <QUrl>
 #include <QPixmap>
 
+/** 使用多个 QMediaPlayer 异步解析音频元数据（封面、标题、艺术家），一次只调度一个 worker。 */
 class MediaPlayerPool : public QObject
 {
     Q_OBJECT
 public:
     explicit MediaPlayerPool(int maxConcurrent = 4, QObject *parent = nullptr);
     ~MediaPlayerPool();
-
-    void addTask(const QUrl &url, int taskId);
-    void start();
+    void addTask(const QUrl &url, int taskId);   // 将任务加入队列
+    void start();                                // 若有空闲 worker 与待处理任务则分配一个
 
 signals:
     void taskFinished(int taskId, const QPixmap &cover, const QString &title, const QString &artist);
     void taskFailed(int taskId, const QString &error);
 
 private:
-    struct Task {
-        QUrl url;
-        int id;
-    };
-
-    // 对象池中的单个工作对象
-    struct Worker : public QObject{
+    struct Task { QUrl url; int id; };
+    struct Worker : public QObject {
         Worker(QObject *parent) : QObject(parent) {}
         ~Worker() {}
 
@@ -38,12 +33,12 @@ private:
         Task currentTask;
     };
 
-    void assignTask(Worker *worker);
-    void releaseWorker(Worker *worker);
+    void assignTask(Worker *worker);    // 从队列取任务并交给 worker 加载
+    void releaseWorker(Worker *worker); // 任务完成或失败时回收 worker 并继续调度
 
-    QList<Worker*> m_workers;           // 工作单元列表
-    QQueue<Worker*> m_idleWorkers;      // 空闲工作单元列表
-    QQueue<Task> m_pendingTasks;        // 待处理项目列表
+    QList<Worker*> m_workers;
+    QQueue<Worker*> m_idleWorkers;
+    QQueue<Task> m_pendingTasks;
     int m_maxConcurrent;
 };
 

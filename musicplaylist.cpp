@@ -9,6 +9,7 @@
 #include <QScrollArea>
 #include <QResizeEvent>
 
+/** @brief 构造：setupUi、滚动条与背景属性、布局、淡入淡出动画、空列表占位。 */
 MusicPlaylist::MusicPlaylist(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::MusicPlaylist)
@@ -82,22 +83,25 @@ MusicPlaylist::MusicPlaylist(QWidget *parent)
     updateEmptyStateUi();
 }
 
+/** @brief 析构：释放 UI。 */
 MusicPlaylist::~MusicPlaylist()
 {
     delete ui;
 }
 
+/** @brief 滑入/滑出动画的横向偏移量（宽度 1/3 与 120 取大）。 */
 int MusicPlaylist::slideOffsetPx() const
 {
-    // 用自身宽度的一部分做滑入距离，避免硬编码；同时下限保证“看得出位移”
     return qMax(120, width() / 3);
 }
 
+/** @brief 动画时长（毫秒）。 */
 int MusicPlaylist::animDurationMs() const
 {
     return 180;
 }
 
+/** @brief 设置目标位置；若当前可见且未在动画则立即 move。 */
 void MusicPlaylist::setTargetPos(const QPoint& p)
 {
     m_targetPos = p;
@@ -116,6 +120,7 @@ bool MusicPlaylist::isAnimating() const
     return m_isAnimating;
 }
 
+/** @brief 从目标位置右侧滑入并淡入，动画结束后收敛到目标位置与不透明。 */
 void MusicPlaylist::showAnimated()
 {
     m_shouldBeVisible = true;
@@ -152,6 +157,7 @@ void MusicPlaylist::showAnimated()
     m_animGroup->start();
 }
 
+/** @brief 向右侧滑出并淡出，动画结束后 hide。 */
 void MusicPlaylist::hideAnimated()
 {
     m_shouldBeVisible = false;
@@ -184,6 +190,7 @@ void MusicPlaylist::hideAnimated()
     m_animGroup->start();
 }
 
+/** @brief 创建 SongUnit 插入布局（弹簧前）、加入列表、连接 ChooseMusic、更新空状态并发送信号。 */
 void MusicPlaylist::AppendMusic(QPixmap pix, QUrl url, QString name, QString artist)
 {
     const bool wasEmpty = m_musiclist.isEmpty();
@@ -208,6 +215,7 @@ void MusicPlaylist::AppendMusic(QPixmap pix, QUrl url, QString name, QString art
     }
 }
 
+/** @brief 追加一首并返回其索引。 */
 int MusicPlaylist::appendSong(const QPixmap& pix, const QUrl& url, const QString& name, const QString& artist)
 {
     const int index = m_musiclist.size();
@@ -215,6 +223,7 @@ int MusicPlaylist::appendSong(const QPixmap& pix, const QUrl& url, const QString
     return index;
 }
 
+/** @brief 移除指定索引的 SongUnit，重排后续项 id，更新空状态与信号。 */
 bool MusicPlaylist::removeSongAt(int index)
 {
     if (index < 0 || index >= m_musiclist.size()) return false;
@@ -245,6 +254,7 @@ bool MusicPlaylist::removeSongAt(int index)
     return true;
 }
 
+/** @brief 移除并删除所有 SongUnit，清空列表，发送 songsChanged(0) 与 hasSongsChanged(false)。 */
 void MusicPlaylist::clearSongs()
 {
     const bool wasNonEmpty = !m_musiclist.isEmpty();
@@ -264,11 +274,13 @@ void MusicPlaylist::clearSongs()
     }
 }
 
+/** @brief 列表是否为空。 */
 bool MusicPlaylist::isempty()
 {
     return m_musiclist.empty();
 }
 
+/** @brief 返回索引 n 对应 SongUnit 的 URL，越界或空返回 QUrl()。 */
 QUrl MusicPlaylist::Geturl(const int n)
 {
     if (n < 0 || n >= m_musiclist.size()) return QUrl();
@@ -277,11 +289,13 @@ QUrl MusicPlaylist::Geturl(const int n)
     return unit->Geturl();
 }
 
+/** @brief 列表中的歌曲数量。 */
 int MusicPlaylist::Getsize()
 {
     return m_musiclist.size();
 }
 
+/** @brief 更新指定索引的封面、标题、艺术家并调用 UiUpdate。 */
 void MusicPlaylist::updateItem(int idx, QPixmap image, QString name, QString artist)
 {
     if (idx < 0 || idx >= m_musiclist.size()) return;
@@ -291,6 +305,7 @@ void MusicPlaylist::updateItem(int idx, QPixmap image, QString name, QString art
     m_musiclist[idx]->UiUpdate();
 }
 
+/** @brief 根据 m_musiclist 是否为空显示/隐藏并置顶空列表占位标签。 */
 void MusicPlaylist::updateEmptyStateUi()
 {
     if (!m_emptyLabel) return;
@@ -301,6 +316,7 @@ void MusicPlaylist::updateEmptyStateUi()
     m_emptyLabel->setGeometry(rect());
 }
 
+/** @brief 大小变化时更新空列表占位几何。 */
 void MusicPlaylist::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
