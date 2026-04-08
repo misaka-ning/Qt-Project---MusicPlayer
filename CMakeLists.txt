@@ -10,8 +10,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 查找 Qt 组件
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Multimedia)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Multimedia)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Multimedia Network)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Multimedia Network)
 
 # 将所有源文件列出
 set(PROJECT_SOURCES
@@ -35,6 +35,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         playercontroller.h playercontroller.cpp
         moremenu.h moremenu.cpp moremenu.ui
         playliststore.h playliststore.cpp
+        cloudmusicservice.h cloudmusicservice.cpp
+        cloudsearchwindow.h cloudsearchwindow.cpp
     )
 else()
     if(ANDROID)
@@ -48,6 +50,7 @@ endif()
 target_link_libraries(MusicPlayer PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Multimedia
+    Qt${QT_VERSION_MAJOR}::Network
 )
 
 # 添加当前源目录到包含路径

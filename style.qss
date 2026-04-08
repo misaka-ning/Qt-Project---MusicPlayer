@@ -49,6 +49,100 @@ QPushButton {
     border-radius: 4px;
 }
 
+#modeButton {
+    background-color: transparent;
+    border-style: none;
+}
+
+#modeButton:hover {
+    background-color: #B4BABF;
+    border-radius: 4px;
+}
+
+#prevButton {
+    background-color: transparent;
+    border-style: none;
+}
+
+#prevButton:hover {
+    background-color: #B4BABF;
+    border-radius: 4px;
+}
+
+#playButton {
+    background-color: transparent;
+    border-style: none;
+}
+
+#playButton:hover {
+    background-color: #B4BABF;
+    border-radius: 4px;
+}
+
+#nextButton {
+    background-color: transparent;
+    border-style: none;
+}
+
+#nextButton:hover {
+    background-color: #B4BABF;
+    border-radius: 4px;
+}
+
+#listButton {
+    background-color: transparent;
+    border-style: none;
+}
+
+#listButton:hover {
+    background-color: #B4BABF;
+    border-radius: 4px;
+}
+
+#moreButton {
+    background-color: transparent;
+    border-style: none;
+}
+
+#moreButton:hover {
+    background-color: #B4BABF;
+    border-radius: 4px;
+}
+
+/* 顶部云搜索框：半透明浅蓝 */
+QLineEdit#cloudSearchEdit {
+    background-color: rgba(120, 180, 255, 92);
+    color: #FFFFFF;
+    border: 1px solid rgba(180, 220, 255, 170);
+    border-radius: 8px;
+    padding: 6px 10px;
+    selection-background-color: rgba(210, 235, 255, 160);
+    selection-color: #0A1A2A;
+}
+
+QLineEdit#cloudSearchEdit:focus {
+    background-color: rgba(135, 195, 255, 112);
+    border: 1px solid rgba(210, 235, 255, 220);
+}
+
+/* 顶部云搜索按钮：深色 */
+QPushButton#cloudSearchButton {
+    background-color: #1D2733;
+    color: #F3F7FF;
+    border: 1px solid rgba(175, 205, 255, 140);
+    border-radius: 8px;
+    padding: 6px 14px;
+}
+
+QPushButton#cloudSearchButton:hover {
+    background-color: #2A3442;
+    border-color: rgba(200, 225, 255, 180);
+}
+
+QPushButton#cloudSearchButton:pressed {
+    background-color: #141C25;
+}
+
 /* 歌词列表样式 */
 QListWidget {
     background-color: transparent;          /* 背景透明 */
@@ -190,7 +284,20 @@ MoreMenu {
     border-radius: 10px;
 }
 
-MoreMenu QPushButton#addMusic {
+MoreMenu QLabel#loginStatusLabel {
+    color: rgba(120, 120, 120, 235);
+    background-color: rgba(255, 255, 255, 4);
+    border: 1px solid rgba(255, 255, 255, 10);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+MoreMenu QPushButton#addMusic,
+MoreMenu QPushButton#removeCurrentSong,
+MoreMenu QPushButton#authNetease {
     background-color: rgba(255, 255, 255, 8);
     border: 1px solid rgba(255, 255, 255, 14);
     border-radius: 8px;
@@ -200,12 +307,74 @@ MoreMenu QPushButton#addMusic {
     font-size: 14px;
 }
 
-MoreMenu QPushButton#addMusic:hover {
+MoreMenu QPushButton#addMusic:hover,
+MoreMenu QPushButton#removeCurrentSong:hover,
+MoreMenu QPushButton#authNetease:hover {
     background-color: rgba(255, 255, 255, 12);
     border-color: rgba(255, 255, 255, 20);
 }
 
-MoreMenu QPushButton#addMusic:pressed {
+MoreMenu QPushButton#addMusic:pressed,
+MoreMenu QPushButton#removeCurrentSong:pressed,
+MoreMenu QPushButton#authNetease:pressed {
     background-color: rgba(255, 255, 255, 16);
     border-color: rgba(255, 255, 255, 26);
+}
+
+/* 云搜索结果窗口：黑底白字 */
+CloudSearchWindow {
+    background-color: #111111;
+    border: 1px solid rgba(255, 255, 255, 26);
+    border-radius: 10px;
+    color: #F5F5F5;
+}
+
+CloudSearchWindow QLabel {
+    background: transparent;
+    color: #F5F5F5;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 13px;
+}
+
+CloudSearchWindow QListWidget {
+    background-color: #171717;
+    border: 1px solid rgba(255, 255, 255, 18);
+    border-radius: 8px;
+    color: #F5F5F5;
+    outline: none;
+    font-size: 14px;
+}
+
+CloudSearchWindow QListWidget::item {
+    background: transparent;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 8);
+}
+
+CloudSearchWindow QListWidget::item:hover {
+    background-color: rgba(255, 255, 255, 10);
+    color: #FFFFFF;
+}
+
+CloudSearchWindow QListWidget::item:selected {
+    background-color: rgba(255, 255, 255, 18);
+    color: #FFFFFF;
+}
+
+CloudSearchWindow QPushButton {
+    background-color: #1F1F1F;
+    color: #FFFFFF;
+    border: 1px solid rgba(255, 255, 255, 26);
+    border-radius: 6px;
+    padding: 6px 14px;
+    min-width: 72px;
+}
+
+CloudSearchWindow QPushButton:hover {
+    background-color: #2A2A2A;
+    border-color: rgba(255, 255, 255, 36);
+}
+
+CloudSearchWindow QPushButton:pressed {
+    background-color: #343434;
 }

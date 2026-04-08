@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>150</width>
-    <height>50</height>
+    <width>190</width>
+    <height>176</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,9 +15,33 @@
   </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="0" column="0">
+    <widget class="QLabel" name="loginStatusLabel">
+     <property name="text">
+      <string>未登录</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignmentFlag::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
     <widget class="QPushButton" name="addMusic">
      <property name="text">
-      <string>添加音乐</string>
+      <string>添加本地音乐</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QPushButton" name="removeCurrentSong">
+     <property name="text">
+      <string>删除当前歌曲</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QPushButton" name="authNetease">
+     <property name="text">
+      <string>登录网易云</string>
      </property>
     </widget>
    </item>

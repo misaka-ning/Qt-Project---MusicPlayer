@@ -17,10 +17,16 @@ void SongUnit::InitUnit()
     ui->artistlabel->setText(m_music_artist);
 }
 
-/** @brief 构造：保存 id/封面/url/标题/艺术家，setupUi 后 InitUnit。 */
-SongUnit::SongUnit(int id, QPixmap pix, QUrl url, QString name, QString artist, QWidget *parent)
+/** @brief 构造：保存 id/封面/url/标题/艺术家/云 songId，setupUi 后 InitUnit。 */
+SongUnit::SongUnit(int id, QPixmap pix, QUrl url, QString name, QString artist, QString cloudSongId, QWidget *parent)
     : QWidget(parent)
-    , ui(new Ui::SongUnit), m_music_id(id), m_music_pixmap(pix) ,m_music_url(url), m_music_name(name), m_music_artist(artist)
+    , ui(new Ui::SongUnit)
+    , m_music_id(id)
+    , m_music_url(url)
+    , m_music_name(name)
+    , m_music_artist(artist)
+    , m_cloud_song_id(cloudSongId)
+    , m_music_pixmap(pix)
 {
     ui->setupUi(this);
     InitUnit();
@@ -65,9 +71,41 @@ void SongUnit::SetArtist(const QString artist)
 }
 
 /** @brief 返回该单元对应的音乐 URL。 */
-QUrl SongUnit::Geturl()
+void SongUnit::SetUrl(const QUrl& url)
+{
+    m_music_url = url;
+}
+
+/** @brief 设置云歌曲 ID。 */
+void SongUnit::SetCloudSongId(const QString& cloudSongId)
+{
+    m_cloud_song_id = cloudSongId;
+}
+
+/** @brief 返回该单元对应的音乐 URL。 */
+QUrl SongUnit::Geturl() const
 {
     return m_music_url;
+}
+
+QString SongUnit::GetCloudSongId() const
+{
+    return m_cloud_song_id;
+}
+
+QString SongUnit::GetName() const
+{
+    return m_music_name;
+}
+
+QString SongUnit::GetArtist() const
+{
+    return m_music_artist;
+}
+
+QPixmap SongUnit::GetPixmap() const
+{
+    return m_music_pixmap;
 }
 
 /** @brief 点击时发射 ChooseMusic(m_music_id)。 */

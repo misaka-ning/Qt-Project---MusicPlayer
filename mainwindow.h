@@ -15,14 +15,19 @@
 #include <QModelIndex>
 #include <QResizeEvent>
 #include <QLabel>
+#include <QHash>
+#include <QNetworkAccessManager>
 #include "musicplaylist.h"
 #include "playercontroller.h"
 #include "lrcparser.h"
 #include "moremenu.h"
+#include "cloudmusicservice.h"
+#include "cloudsearchwindow.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
+class QDialog;
 
 class MainWindow : public QMainWindow
 {
@@ -43,6 +48,19 @@ private:
     bool m_isDragging;
     QPointF m_dragStartPos;
     MoreMenu *m_moremenuwindow;
+    CloudMusicService *m_cloudService;
+    quint64 m_cloudRequestSeq;
+    QHash<quint64, QString> m_playUrlRequestToSongId;
+    CloudSearchWindow *m_cloudSearchWindow;
+    QNetworkAccessManager *m_coverNam;
+    quint64 m_latestLyricsRequestId{0};
+    QString m_pendingLyricsSongId;
+    QString m_currentNeteaseQrUnikey;
+    bool m_neteaseQrLoginActive{false};
+    QString m_lastCloudRetrySongId;
+    QString m_lastCloudRetrySourceUrl;
+    QDialog *m_neteaseQrDialog{nullptr};
+    QLabel *m_neteaseQrImageLabel{nullptr};
 
     enum Edge {
         NoEdge = 0,
@@ -86,6 +104,18 @@ private:
     void startResize(Edge edge, const QPoint &pos);       // 开始调整大小时记录状态
     void performResize(const QPoint &pos);                // 根据鼠标移动计算并设置新几何
     void moremenubuttonclick();                           // 按下更多按钮执行操作
+    void fetchCloudCoverArt(const QUrl& coverUrl, int playlistIndex,
+                            const QString& title, const QString& artist);
+    void startNeteaseQrLogin();
+    void scheduleNeteaseQrPoll(int delayMs = 1800);
+    void showNeteaseLoginErrorWithRetry(const QString &message);
+    void showNeteaseQrDialog(const QUrl &qrDataUrl);
+    void closeNeteaseQrDialog();
+    QString cloudLyricsDirPath() const;
+    QString cloudLyricsLrcPath(const QString &songId) const;
+    QString cloudLyricsStubMusicPath(const QString &songId) const;
+    bool saveCloudLyricsToLocal(const QString &songId, const QString &lrcText);
+    bool loadCloudLyricsFromLocal(const QString &songId);
 
 private slots:
     void StatusChanged(QMediaPlayer::MediaStatus status); // 媒体状态变化：Loaded/Buffered 时应用 pendingSeek，EndOfMedia 时自动下一首
@@ -93,6 +123,20 @@ private slots:
     void UpdateMetadata();                                // 从当前播放器读取元数据并更新封面/标题/艺术家/歌词
     void MusicEnd();                                      // 当前曲目结束，通知 PlayerController 切下一首
     void onAddMusicFromMoreMenu();                        // MoreMenu -> 添加音乐
+    void onRemoveCurrentSongFromMoreMenu();               // MoreMenu -> 删除当前歌曲（仅移除列表/缓存，不删本地文件）
+    void onNeteaseAuthButtonFromMoreMenu(bool loggedIn);  // MoreMenu -> 登录/退出网易云
+    void onNeteaseQrUnikeyReady(quint64 requestId, bool ok, const QString& message, const QString& unikey);
+    void onNeteaseQrUrlReady(quint64 requestId, bool ok, const QString& message, const QString& unikey, const QUrl& qrUrl);
+    void onNeteaseQrStatus(quint64 requestId,
+                           bool ok,
+                           const QString& message,
+                           const QString& unikey,
+                           const QString& status,
+                           int statusCode,
+                           bool loggedIn,
+                           const QString& nickname);
+    void onNeteaseAuthStatusReady(quint64 requestId, bool ok, const QString& message, bool loggedIn, const QString& nickname);
+    void onNeteaseLogoutFinished(quint64 requestId, bool ok, const QString& message);
     void updateSliderPosition(qint64 position);           // 同步播放位置到进度条
     void updateSliderRange(qint64 duration);              // 设置进度条范围
     void updatalyricsListWidget();                        // 根据窗口宽度设置歌词列表高度
@@ -100,6 +144,17 @@ private slots:
     void onPositionChanged(qint64 position);              // 高亮对应歌词行并自动居中
     void onLyricsListWidgetClicked(QModelIndex index);    // 点击歌词行跳转时间并居中
     void onWheelTimerTimeout();                           // 滚轮定时器超时后恢复自动跟随
+    void onCloudSearchRequested();
+    void onCloudSearchFinished(quint64 requestId, const QVector<CloudMusicService::CloudSongBrief>& songs);
+    void onCloudPlayUrlReady(quint64 requestId,
+                             const QString& songId,
+                             const QUrl& playUrl,
+                             const QString& title,
+                             const QString& artist,
+                             const QUrl& coverUrl);
+    void onCloudRequestFailed(quint64 requestId, CloudMusicService::RequestError error, const QString& message);
+    void onCloudTrackResolveRequested(const QString& songId);
+    void onCloudLyricsReady(quint64 requestId, const QString& songId, const QString& lyrics);
 
 protected:
     void resizeEvent(QResizeEvent *event) override;       // 重绘圆角遮罩、更新 overlay 与列表位置

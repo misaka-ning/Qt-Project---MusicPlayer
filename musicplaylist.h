@@ -21,14 +21,20 @@ public:
     explicit MusicPlaylist(QWidget *parent = nullptr);
     ~MusicPlaylist();
 
-    void AppendMusic(QPixmap pix, QUrl url, QString name, QString artist);  // 直接追加一首，无返回值
-    int appendSong(const QPixmap& pix, const QUrl& url, const QString& name, const QString& artist);  // 返回索引的便捷接口
+    void AppendMusic(QPixmap pix, QUrl url, QString name, QString artist, const QString& cloudSongId = QString());  // 直接追加一首，无返回值
+    int appendSong(const QPixmap& pix, const QUrl& url, const QString& name, const QString& artist, const QString& cloudSongId = QString());  // 返回索引的便捷接口
     bool removeSongAt(int index);
     void clearSongs();
     bool isempty();
     QUrl Geturl(const int n);
+    bool setSongUrlAt(int index, const QUrl& url);
     int Getsize();
     void updateItem(int idx, QPixmap image, QString name, QString artist);
+    int findIndexByCloudSongId(const QString& cloudSongId) const;
+    QString cloudSongIdAt(int index) const;
+    QString songTitleAt(int index) const;
+    QString songArtistAt(int index) const;
+    QPixmap coverPixmapAt(int index) const;
     bool hasSongs() const { return !m_musiclist.isEmpty(); }
     void setTargetPos(const QPoint& p);
     QPoint targetPos() const;

@@ -191,11 +191,11 @@ void MusicPlaylist::hideAnimated()
 }
 
 /** @brief 创建 SongUnit 插入布局（弹簧前）、加入列表、连接 ChooseMusic、更新空状态并发送信号。 */
-void MusicPlaylist::AppendMusic(QPixmap pix, QUrl url, QString name, QString artist)
+void MusicPlaylist::AppendMusic(QPixmap pix, QUrl url, QString name, QString artist, const QString& cloudSongId)
 {
     const bool wasEmpty = m_musiclist.isEmpty();
 
-    SongUnit *unit = new SongUnit(m_musiclist.size(), pix, url, name, artist, this);
+    SongUnit *unit = new SongUnit(m_musiclist.size(), pix, url, name, artist, cloudSongId, this);
     // 添加到布局（插入到弹簧之前）
     if (m_layout->count() > 0) {
         // 如果布局中有弹簧，插入到最后一个元素（弹簧）之前，确保弹簧始终在最底部
@@ -216,10 +216,11 @@ void MusicPlaylist::AppendMusic(QPixmap pix, QUrl url, QString name, QString art
 }
 
 /** @brief 追加一首并返回其索引。 */
-int MusicPlaylist::appendSong(const QPixmap& pix, const QUrl& url, const QString& name, const QString& artist)
+int MusicPlaylist::appendSong(const QPixmap& pix, const QUrl& url, const QString& name, const QString& artist,
+                              const QString& cloudSongId)
 {
     const int index = m_musiclist.size();
-    AppendMusic(pix, url, name, artist);
+    AppendMusic(pix, url, name, artist, cloudSongId);
     return index;
 }
 
@@ -289,10 +290,58 @@ QUrl MusicPlaylist::Geturl(const int n)
     return unit->Geturl();
 }
 
+bool MusicPlaylist::setSongUrlAt(int index, const QUrl& url)
+{
+    if (index < 0 || index >= m_musiclist.size()) return false;
+    SongUnit *unit = m_musiclist[index];
+    if (!unit) return false;
+    unit->SetUrl(url);
+    return true;
+}
+
 /** @brief 列表中的歌曲数量。 */
 int MusicPlaylist::Getsize()
 {
     return m_musiclist.size();
+}
+
+int MusicPlaylist::findIndexByCloudSongId(const QString& cloudSongId) const
+{
+    if (cloudSongId.trimmed().isEmpty()) return -1;
+    const QString target = cloudSongId.trimmed();
+    for (int i = 0; i < m_musiclist.size(); ++i) {
+        SongUnit *unit = m_musiclist[i];
+        if (unit && unit->GetCloudSongId() == target) return i;
+    }
+    return -1;
+}
+
+QString MusicPlaylist::cloudSongIdAt(int index) const
+{
+    if (index < 0 || index >= m_musiclist.size()) return QString();
+    SongUnit *unit = m_musiclist[index];
+    return unit ? unit->GetCloudSongId() : QString();
+}
+
+QString MusicPlaylist::songTitleAt(int index) const
+{
+    if (index < 0 || index >= m_musiclist.size()) return QString();
+    SongUnit *unit = m_musiclist[index];
+    return unit ? unit->GetName() : QString();
+}
+
+QString MusicPlaylist::songArtistAt(int index) const
+{
+    if (index < 0 || index >= m_musiclist.size()) return QString();
+    SongUnit *unit = m_musiclist[index];
+    return unit ? unit->GetArtist() : QString();
+}
+
+QPixmap MusicPlaylist::coverPixmapAt(int index) const
+{
+    if (index < 0 || index >= m_musiclist.size()) return QPixmap();
+    SongUnit *unit = m_musiclist[index];
+    return unit ? unit->GetPixmap() : QPixmap();
 }
 
 /** @brief 更新指定索引的封面、标题、艺术家并调用 UiUpdate。 */

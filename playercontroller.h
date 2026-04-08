@@ -6,6 +6,7 @@
 #include <QAudioOutput>
 #include <QMap>
 #include <QUrl>
+#include <QPixmap>
 #include <QStringList>
 #include "musicplaylist.h"
 #include "mediaplayerpool.h"
@@ -28,6 +29,12 @@ public:
     QAudioOutput *GetAudioOutput() const { return m_audioOutput; }
     void InitPlayList(MusicPlaylist *playlist);               // 扫描 MusicList、追加 SongUnit、提交元数据任务、设置初始源
     void AddLocalFiles(const QStringList& filePaths);         // 运行期追加本地音乐（去重、写入 playlist.json、提交解析）
+    int addOrUpdateCloudTrackAndPlay(const QString& songId, const QUrl& playUrl,
+                                     const QString& title, const QString& artist,
+                                     const QPixmap& cover = QPixmap());
+    bool applyCoverToPlaylistIndex(int playlistIndex, const QPixmap& cover,
+                                   const QString& title = QString(), const QString& artist = QString());
+    bool removeCurrentSong();
     void PlayPrevSong();                                      // 上一首（按当前模式）
     void PlayNextSong();                                      // 下一首（按当前模式）
     void PlaySong();                                          // 根据 m_playnum 设置源并在需要时 play
@@ -39,6 +46,7 @@ public:
 
 signals:
     void playlistAvailabilityChanged(bool hasSongs);          // 是否有歌曲，供 UI 更新控件与占位
+    void cloudTrackResolveRequested(const QString& songId);   // 选中云端占位歌曲时，请求解析可播放 URL
 
 public slots:
     void OnChooseMusic(int id);                               // 由 MusicPlaylist 选中信号触发，切换并播放
@@ -60,6 +68,10 @@ private:
     void InitPool();                  // 创建 MediaPlayerPool 并连接 taskFinished/taskFailed
     void UpdateRandomArray();        // 生成随机播放顺序（Fisher-Yates），仅 Loop_Play 使用
     bool ensureValidPlayIndex();      // 将 m_playnum 限制在 [0, size)，空列表返回 false
+    void rebuildUrlToIndex();
+
+public:
+    void refreshPlaylistIndex();
 };
 
 #endif // PLAYERCONTROLLER_H

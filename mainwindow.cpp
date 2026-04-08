@@ -15,7 +15,18 @@
 #include <QApplication>
 #include <QGraphicsOpacityEffect>
 #include <QFileDialog>
-#include "songunit.h"
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QShortcut>
+#include <QStatusBar>
+#include <QUrlQuery>
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QtGlobal>
+#include <QFile>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
 
 /** @brief 根据是否有歌曲启用/禁用播放相关控件，列表按钮始终可用；空列表时复位播放按钮图标。 */
 void MainWindow::updatePlaybackControlsEnabled(bool enabled)
@@ -96,7 +107,12 @@ void MainWindow::InitWindow()
     m_isDragging = false;
     m_moremenuwindow = new MoreMenu(this);
     m_moremenuwindow->hide();
+    m_moremenuwindow->setLoginState(false, QString());
     connect(m_moremenuwindow, &MoreMenu::addMusicClicked, this, &MainWindow::onAddMusicFromMoreMenu);
+    connect(m_moremenuwindow, &MoreMenu::removeCurrentSongClicked, this, &MainWindow::onRemoveCurrentSongFromMoreMenu);
+    connect(m_moremenuwindow, &MoreMenu::authNeteaseClicked, this, &MainWindow::onNeteaseAuthButtonFromMoreMenu);
+
+    m_coverNam = new QNetworkAccessManager(this);
 
     // 初始化窗口调整大小相关变量
     m_isResizing = false;
@@ -118,6 +134,234 @@ void MainWindow::onAddMusicFromMoreMenu()
     if (files.isEmpty()) return;
 
     m_playerController->AddLocalFiles(files);
+}
+
+void MainWindow::onRemoveCurrentSongFromMoreMenu()
+{
+    if (!m_playerController) return;
+    const bool ok = m_playerController->removeCurrentSong();
+    if (statusBar()) {
+        statusBar()->showMessage(ok ? QStringLiteral("已删除当前歌曲") : QStringLiteral("删除失败：当前无可删除歌曲"), 2000);
+    }
+    if (m_moremenuwindow) m_moremenuwindow->hide();
+}
+
+void MainWindow::onNeteaseAuthButtonFromMoreMenu(bool loggedIn)
+{
+    if (!m_cloudService) return;
+    if (loggedIn) {
+        m_neteaseQrLoginActive = false;
+        m_currentNeteaseQrUnikey.clear();
+        closeNeteaseQrDialog();
+        m_cloudService->logoutNetease(++m_cloudRequestSeq);
+        if (statusBar()) statusBar()->showMessage(QStringLiteral("正在退出网易云登录..."), 2000);
+    } else {
+        startNeteaseQrLogin();
+    }
+    if (m_moremenuwindow) m_moremenuwindow->hide();
+}
+
+void MainWindow::startNeteaseQrLogin()
+{
+    if (!m_cloudService) return;
+    m_neteaseQrLoginActive = true;
+    m_currentNeteaseQrUnikey.clear();
+    if (m_moremenuwindow) m_moremenuwindow->setLoginState(false, QString());
+    if (statusBar()) statusBar()->showMessage(QStringLiteral("正在准备网易云登录二维码..."), 2500);
+    m_cloudService->requestNeteaseQrUnikey(++m_cloudRequestSeq);
+}
+
+void MainWindow::scheduleNeteaseQrPoll(int delayMs)
+{
+    if (!m_neteaseQrLoginActive || m_currentNeteaseQrUnikey.isEmpty() || !m_cloudService) return;
+    QTimer::singleShot(qMax(300, delayMs), this, [this]() {
+        if (!m_neteaseQrLoginActive || m_currentNeteaseQrUnikey.isEmpty() || !m_cloudService) return;
+        m_cloudService->checkNeteaseQrStatus(m_currentNeteaseQrUnikey, ++m_cloudRequestSeq);
+    });
+}
+
+void MainWindow::showNeteaseLoginErrorWithRetry(const QString &message)
+{
+    closeNeteaseQrDialog();
+    const QString readable = message.trimmed().isEmpty()
+        ? QStringLiteral("网易云登录失败，请稍后重试。")
+        : message.trimmed();
+    const auto ret = QMessageBox::warning(this,
+                                          QStringLiteral("网易云登录失败"),
+                                          readable,
+                                          QMessageBox::Retry | QMessageBox::Cancel,
+                                          QMessageBox::Retry);
+    if (ret == QMessageBox::Retry) {
+        startNeteaseQrLogin();
+        return;
+    }
+    m_neteaseQrLoginActive = false;
+    m_currentNeteaseQrUnikey.clear();
+}
+
+void MainWindow::showNeteaseQrDialog(const QUrl &qrDataUrl)
+{
+    if (!m_neteaseQrDialog) {
+        m_neteaseQrDialog = new QDialog(this);
+        m_neteaseQrDialog->setWindowTitle(QStringLiteral("网易云扫码登录"));
+        m_neteaseQrDialog->setModal(false);
+        m_neteaseQrDialog->setAttribute(Qt::WA_DeleteOnClose, false);
+
+        auto *layout = new QVBoxLayout(m_neteaseQrDialog);
+        auto *tipLabel = new QLabel(QStringLiteral("请使用手机网易云音乐 App 扫码并确认登录"), m_neteaseQrDialog);
+        tipLabel->setAlignment(Qt::AlignCenter);
+        m_neteaseQrImageLabel = new QLabel(QStringLiteral("正在加载二维码..."), m_neteaseQrDialog);
+        m_neteaseQrImageLabel->setAlignment(Qt::AlignCenter);
+        m_neteaseQrImageLabel->setFixedSize(320, 320);
+        m_neteaseQrImageLabel->setStyleSheet(QStringLiteral("QLabel{background:#111;color:#ddd;border:1px solid #333;border-radius:8px;}"));
+        layout->addWidget(tipLabel);
+        layout->addWidget(m_neteaseQrImageLabel, 0, Qt::AlignCenter);
+        m_neteaseQrDialog->setLayout(layout);
+        m_neteaseQrDialog->setFixedSize(380, 420);
+    }
+
+    if (m_neteaseQrImageLabel) {
+        m_neteaseQrImageLabel->setText(QStringLiteral("正在加载二维码..."));
+        m_neteaseQrImageLabel->setPixmap(QPixmap());
+    }
+    m_neteaseQrDialog->show();
+    m_neteaseQrDialog->raise();
+    m_neteaseQrDialog->activateWindow();
+
+    if (!m_coverNam || !qrDataUrl.isValid() || qrDataUrl.isEmpty()) return;
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("size"), QStringLiteral("320x320"));
+    query.addQueryItem(QStringLiteral("data"), qrDataUrl.toString(QUrl::FullyEncoded));
+    QUrl imageUrl(QStringLiteral("https://api.qrserver.com/v1/create-qr-code/"));
+    imageUrl.setQuery(query);
+
+    QNetworkReply *reply = m_coverNam->get(QNetworkRequest(imageUrl));
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (!m_neteaseQrImageLabel) return;
+        if (reply->error() != QNetworkReply::NoError) {
+            m_neteaseQrImageLabel->setText(QStringLiteral("二维码加载失败，请重试"));
+            return;
+        }
+        QPixmap px;
+        if (!px.loadFromData(reply->readAll())) {
+            m_neteaseQrImageLabel->setText(QStringLiteral("二维码解析失败，请重试"));
+            return;
+        }
+        m_neteaseQrImageLabel->setPixmap(px.scaled(320, 320, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    });
+}
+
+void MainWindow::closeNeteaseQrDialog()
+{
+    if (m_neteaseQrDialog && m_neteaseQrDialog->isVisible()) {
+        m_neteaseQrDialog->close();
+    }
+}
+
+void MainWindow::onNeteaseQrUnikeyReady(quint64 requestId, bool ok, const QString& message, const QString& unikey)
+{
+    Q_UNUSED(requestId);
+    if (!ok || unikey.trimmed().isEmpty()) {
+        showNeteaseLoginErrorWithRetry(message.isEmpty() ? QStringLiteral("获取二维码失败。") : message);
+        return;
+    }
+    m_currentNeteaseQrUnikey = unikey.trimmed();
+    m_cloudService->requestNeteaseQrUrl(m_currentNeteaseQrUnikey, ++m_cloudRequestSeq);
+}
+
+void MainWindow::onNeteaseQrUrlReady(quint64 requestId, bool ok, const QString& message, const QString& unikey, const QUrl& qrUrl)
+{
+    Q_UNUSED(requestId);
+    if (!ok || !qrUrl.isValid() || qrUrl.isEmpty()) {
+        showNeteaseLoginErrorWithRetry(message.isEmpty() ? QStringLiteral("获取二维码链接失败。") : message);
+        return;
+    }
+    m_currentNeteaseQrUnikey = unikey.trimmed();
+    if (statusBar()) {
+        statusBar()->showMessage(QStringLiteral("请使用网易云音乐 App 扫码登录"), 3500);
+    }
+    showNeteaseQrDialog(qrUrl);
+    if (m_neteaseQrLoginActive) {
+        scheduleNeteaseQrPoll(1200);
+    }
+}
+
+void MainWindow::onNeteaseQrStatus(quint64 requestId,
+                                   bool ok,
+                                   const QString& message,
+                                   const QString& unikey,
+                                   const QString& status,
+                                   int statusCode,
+                                   bool loggedIn,
+                                   const QString& nickname)
+{
+    Q_UNUSED(requestId);
+    Q_UNUSED(statusCode);
+    if (!m_neteaseQrLoginActive) return;
+    if (!m_currentNeteaseQrUnikey.isEmpty() && unikey != m_currentNeteaseQrUnikey) return;
+
+    if (!ok) {
+        showNeteaseLoginErrorWithRetry(message.isEmpty() ? QStringLiteral("二维码状态查询失败。") : message);
+        return;
+    }
+
+    const QString state = status.trimmed().toLower();
+    if (state == QStringLiteral("authorized") || loggedIn) {
+        m_neteaseQrLoginActive = false;
+        m_currentNeteaseQrUnikey.clear();
+        closeNeteaseQrDialog();
+        const QString shownName = nickname.trimmed().isEmpty() ? QStringLiteral("网易云用户") : nickname.trimmed();
+        if (m_moremenuwindow) m_moremenuwindow->setLoginState(true, shownName);
+        if (statusBar()) statusBar()->showMessage(QStringLiteral("网易云已登录：%1").arg(shownName), 5000);
+        QMessageBox::information(this, QStringLiteral("登录成功"), QStringLiteral("网易云登录成功：%1").arg(shownName));
+        return;
+    }
+    if (state == QStringLiteral("expired")) {
+        showNeteaseLoginErrorWithRetry(QStringLiteral("二维码已过期，请重试。"));
+        return;
+    }
+
+    if (statusBar()) {
+        statusBar()->showMessage(message.trimmed().isEmpty() ? QStringLiteral("等待扫码...") : message.trimmed(), 1500);
+    }
+    scheduleNeteaseQrPoll(1800);
+}
+
+void MainWindow::onNeteaseAuthStatusReady(quint64 requestId, bool ok, const QString& message, bool loggedIn, const QString& nickname)
+{
+    Q_UNUSED(requestId);
+    if (!m_moremenuwindow) return;
+
+    if (!ok) {
+        m_moremenuwindow->setLoginState(false, QString());
+        return;
+    }
+
+    if (loggedIn) {
+        const QString shownName = nickname.trimmed().isEmpty() ? QStringLiteral("网易云用户") : nickname.trimmed();
+        m_moremenuwindow->setLoginState(true, shownName);
+        if (statusBar()) {
+            statusBar()->showMessage(QStringLiteral("网易云已自动登录：%1").arg(shownName), 2500);
+        }
+    } else {
+        Q_UNUSED(message);
+        m_moremenuwindow->setLoginState(false, QString());
+    }
+}
+
+void MainWindow::onNeteaseLogoutFinished(quint64 requestId, bool ok, const QString& message)
+{
+    Q_UNUSED(requestId);
+    if (ok) {
+        if (m_moremenuwindow) m_moremenuwindow->setLoginState(false, QString());
+        if (statusBar()) statusBar()->showMessage(QStringLiteral("已退出网易云登录"), 2500);
+        QMessageBox::information(this, QStringLiteral("退出成功"), QStringLiteral("已退出网易云登录"));
+        return;
+    }
+    const QString tip = message.trimmed().isEmpty() ? QStringLiteral("退出登录失败") : message.trimmed();
+    if (statusBar()) statusBar()->showMessage(QStringLiteral("退出失败：%1").arg(tip), 4000);
+    QMessageBox::warning(this, QStringLiteral("退出失败"), tip);
 }
 
 /** @brief 设置各按钮图标并连接信号：模式切换、上一首/下一首、播放/暂停、列表、最小化/最大化/关闭。 */
@@ -244,6 +488,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     InitWindow();
     m_playerController = new PlayerController(this);
+    m_cloudService = new CloudMusicService(this);
+    m_cloudRequestSeq = 0;
+    m_cloudSearchWindow = new CloudSearchWindow(this);
 
     // 播放列表可用性变化：统一更新 overlay 与控件可用性
     connect(m_playerController, &PlayerController::playlistAvailabilityChanged, this, [this](bool hasSongs) {
@@ -255,6 +502,32 @@ MainWindow::MainWindow(QWidget *parent)
     InitPlayList();
     InitLrcParser();
 
+    connect(ui->cloudSearchButton, &QPushButton::clicked, this, &MainWindow::onCloudSearchRequested);
+    connect(ui->cloudSearchEdit, &QLineEdit::returnPressed, this, &MainWindow::onCloudSearchRequested);
+    auto *focusSearchShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+F")), this);
+    connect(focusSearchShortcut, &QShortcut::activated, this, [this]() {
+        if (ui && ui->cloudSearchEdit) {
+            ui->cloudSearchEdit->setFocus();
+            ui->cloudSearchEdit->selectAll();
+        }
+    });
+    connect(m_cloudService, &CloudMusicService::searchFinished, this, &MainWindow::onCloudSearchFinished);
+    connect(m_cloudService, &CloudMusicService::playUrlReady, this, &MainWindow::onCloudPlayUrlReady);
+    connect(m_cloudService, &CloudMusicService::lyricsReady, this, &MainWindow::onCloudLyricsReady);
+    connect(m_cloudService, &CloudMusicService::neteaseQrUnikeyReady, this, &MainWindow::onNeteaseQrUnikeyReady);
+    connect(m_cloudService, &CloudMusicService::neteaseQrUrlReady, this, &MainWindow::onNeteaseQrUrlReady);
+    connect(m_cloudService, &CloudMusicService::neteaseQrStatus, this, &MainWindow::onNeteaseQrStatus);
+    connect(m_cloudService, &CloudMusicService::neteaseAuthStatusReady, this, &MainWindow::onNeteaseAuthStatusReady);
+    connect(m_cloudService, &CloudMusicService::neteaseLogoutFinished, this, &MainWindow::onNeteaseLogoutFinished);
+    connect(m_cloudService, &CloudMusicService::requestFailed, this, &MainWindow::onCloudRequestFailed);
+    connect(m_playerController, &PlayerController::cloudTrackResolveRequested,
+            this, &MainWindow::onCloudTrackResolveRequested);
+    connect(m_cloudSearchWindow, &CloudSearchWindow::songActivated,
+            this, &MainWindow::onCloudTrackResolveRequested);
+
+    // 启动后主动恢复网易云登录态（若后端会话仍有效）
+    m_cloudService->fetchNeteaseAuthStatus(++m_cloudRequestSeq);
+
     QMediaPlayer *player = m_playerController->GetPlayer();
 
     // 音乐准备完毕信号槽
@@ -262,6 +535,44 @@ MainWindow::MainWindow(QWidget *parent)
 
     // 音乐播放结束信号槽
     connect(player, &QMediaPlayer::playbackStateChanged, this, &MainWindow::StateChange);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    connect(player, &QMediaPlayer::errorOccurred, this, [this, player](QMediaPlayer::Error error, const QString& errorString) {
+        Q_UNUSED(error);
+        const int currentIndex = m_playerController ? m_playerController->GetCurrentIndex() : -1;
+        const QString sid = (m_musicplaylist && currentIndex >= 0 && currentIndex < m_musicplaylist->Getsize())
+            ? m_musicplaylist->cloudSongIdAt(currentIndex)
+            : QString();
+        const QString src = player ? player->source().toString() : QString();
+        const QString err = errorString.trimmed();
+        const QString errLower = err.toLower();
+        const bool isHttp403Or404 = errLower.contains(QStringLiteral(" 403"))
+            || errLower.contains(QStringLiteral("403 "))
+            || errLower.contains(QStringLiteral(" 404"))
+            || errLower.contains(QStringLiteral("404 "))
+            || errLower.contains(QStringLiteral("forbidden"))
+            || errLower.contains(QStringLiteral("not found"));
+        if (isHttp403Or404 && !sid.isEmpty() && (sid != m_lastCloudRetrySongId || src != m_lastCloudRetrySourceUrl)) {
+            m_lastCloudRetrySongId = sid;
+            m_lastCloudRetrySourceUrl = src;
+            statusBar()->showMessage(QStringLiteral("播放失败，正在刷新云端链接..."), 2500);
+            onCloudTrackResolveRequested(sid);
+            return;
+        }
+        statusBar()->showMessage(QStringLiteral("播放失败：%1").arg(err.isEmpty()
+                                                       ? QStringLiteral("未知错误")
+                                                       : err),
+                                 5000);
+    });
+#else
+    connect(player, QOverload<QMediaPlayer::Error>::of(&QMediaPlayer::error), this, [this, player](QMediaPlayer::Error error) {
+        Q_UNUSED(error);
+        const QString err = player ? player->errorString() : QString();
+        statusBar()->showMessage(QStringLiteral("播放失败：%1").arg(err.trimmed().isEmpty()
+                                                       ? QStringLiteral("未知错误")
+                                                       : err),
+                                 5000);
+    });
+#endif
 
     // 进度条相关槽函数
     connect(player, &QMediaPlayer::positionChanged, this, &MainWindow::updateSliderPosition);
@@ -274,6 +585,154 @@ MainWindow::MainWindow(QWidget *parent)
     const bool hasSongs = (m_musicplaylist && !m_musicplaylist->isempty());
     updateEmptyOverlayVisible(!hasSongs);
     updatePlaybackControlsEnabled(hasSongs);
+}
+
+void MainWindow::onCloudSearchRequested()
+{
+    if (!m_cloudService || !ui || !ui->cloudSearchEdit) return;
+    const QString keyword = ui->cloudSearchEdit->text().trimmed();
+    if (keyword.isEmpty()) {
+        statusBar()->showMessage(QStringLiteral("请输入要搜索的关键词"), 2500);
+        return;
+    }
+
+    const quint64 requestId = ++m_cloudRequestSeq;
+    statusBar()->showMessage(QStringLiteral("正在搜索：%1").arg(keyword), 1500);
+    m_cloudService->searchSongs(keyword, 1, 20, requestId);
+}
+
+void MainWindow::onCloudSearchFinished(quint64 requestId, const QVector<CloudMusicService::CloudSongBrief>& songs)
+{
+    Q_UNUSED(requestId);
+    if (!m_cloudSearchWindow) return;
+    m_cloudSearchWindow->setResults(songs);
+    m_cloudSearchWindow->show();
+    m_cloudSearchWindow->raise();
+    m_cloudSearchWindow->activateWindow();
+    if (songs.isEmpty()) {
+        statusBar()->showMessage(QStringLiteral("未找到结果"), 2500);
+    } else {
+        statusBar()->showMessage(QStringLiteral("搜索完成：%1 条").arg(songs.size()), 3000);
+    }
+}
+
+QString MainWindow::cloudLyricsDirPath() const
+{
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("CloudLyrics"));
+}
+
+QString MainWindow::cloudLyricsLrcPath(const QString &songId) const
+{
+    return QDir(cloudLyricsDirPath()).filePath(songId + QStringLiteral(".lrc"));
+}
+
+QString MainWindow::cloudLyricsStubMusicPath(const QString &songId) const
+{
+    return QDir(cloudLyricsDirPath()).filePath(songId + QStringLiteral(".mp3"));
+}
+
+bool MainWindow::saveCloudLyricsToLocal(const QString &songId, const QString &lrcText)
+{
+    if (songId.trimmed().isEmpty()) return false;
+    QDir dir(cloudLyricsDirPath());
+    if (!dir.exists() && !dir.mkpath(QStringLiteral("."))) return false;
+
+    QFile file(cloudLyricsLrcPath(songId));
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) return false;
+    file.write(lrcText.toUtf8());
+    file.close();
+    return true;
+}
+
+bool MainWindow::loadCloudLyricsFromLocal(const QString &songId)
+{
+    if (songId.trimmed().isEmpty()) return false;
+    if (!QFile::exists(cloudLyricsLrcPath(songId))) return false;
+    loadLyrics(cloudLyricsStubMusicPath(songId));
+    return true;
+}
+
+void MainWindow::fetchCloudCoverArt(const QUrl& coverUrl, int playlistIndex,
+                                   const QString& title, const QString& artist)
+{
+    if (!m_coverNam || !coverUrl.isValid() || coverUrl.isEmpty() || playlistIndex < 0) return;
+    QNetworkRequest req(coverUrl);
+    req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"));
+    req.setRawHeader("Referer", "https://music.163.com/");
+
+    QNetworkReply *reply = m_coverNam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, playlistIndex, title, artist]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) return;
+        QPixmap cover;
+        cover.loadFromData(reply->readAll());
+        if (cover.isNull()) return;
+        if (m_playerController) m_playerController->applyCoverToPlaylistIndex(playlistIndex, cover, title, artist);
+        if (m_playerController && playlistIndex == m_playerController->GetCurrentIndex()) {
+            ui->imagelabel->setPixmap(cover);
+        }
+    });
+}
+
+void MainWindow::onCloudTrackResolveRequested(const QString& songId)
+{
+    if (!m_cloudService || songId.trimmed().isEmpty()) return;
+    const quint64 requestId = ++m_cloudRequestSeq;
+    m_playUrlRequestToSongId.insert(requestId, songId.trimmed());
+    statusBar()->showMessage(QStringLiteral("正在获取播放地址..."), 1500);
+    m_cloudService->fetchPlayableUrl(songId.trimmed(), requestId);
+}
+
+void MainWindow::onCloudPlayUrlReady(quint64 requestId,
+                                     const QString& songId,
+                                     const QUrl& playUrl,
+                                     const QString& title,
+                                     const QString& artist,
+                                     const QUrl& coverUrl)
+{
+    if (!m_playerController) return;
+
+    m_playUrlRequestToSongId.remove(requestId);
+    if (!songId.trimmed().isEmpty() && songId.trimmed() == m_lastCloudRetrySongId) {
+        // 已成功拿到新直链，允许后续在该歌曲再次出现错误时重试一次。
+        m_lastCloudRetrySourceUrl.clear();
+    }
+    const QPixmap cover(":/res/misaka.png");
+    const int idx = m_playerController->addOrUpdateCloudTrackAndPlay(songId, playUrl, title, artist, cover);
+    if (idx >= 0) {
+        statusBar()->showMessage(QStringLiteral("正在播放：%1 - %2").arg(artist, title), 3000);
+    }
+
+    if (idx >= 0 && coverUrl.isValid() && !coverUrl.isEmpty()) {
+        fetchCloudCoverArt(coverUrl, idx, title, artist);
+    }
+
+    if (!songId.trimmed().isEmpty()) {
+        if (!loadCloudLyricsFromLocal(songId)) {
+            const quint64 lyrReq = ++m_cloudRequestSeq;
+            m_latestLyricsRequestId = lyrReq;
+            m_pendingLyricsSongId = songId;
+            m_cloudService->fetchLyrics(songId, lyrReq);
+        }
+    }
+}
+
+void MainWindow::onCloudRequestFailed(quint64 requestId, CloudMusicService::RequestError error, const QString& message)
+{
+    Q_UNUSED(error);
+    m_playUrlRequestToSongId.remove(requestId);
+    statusBar()->showMessage(QStringLiteral("云端请求失败：%1").arg(message), 4000);
+}
+
+void MainWindow::onCloudLyricsReady(quint64 requestId, const QString& songId, const QString& lyrics)
+{
+    if (requestId != m_latestLyricsRequestId) return;
+    if (!m_pendingLyricsSongId.isEmpty() && !songId.isEmpty() && songId != m_pendingLyricsSongId) return;
+    if (songId.trimmed().isEmpty()) return;
+
+    saveCloudLyricsToLocal(songId, lyrics);
+    loadLyrics(cloudLyricsStubMusicPath(songId));
 }
 
 /** @brief 槽：播放时长变化时设置进度条范围，根据 duration 启用/禁用。 */
@@ -453,28 +912,51 @@ void MainWindow::UpdateMetadata()
     if (!m_playerController) return;
     QMediaMetaData metaData = m_playerController->GetPlayer()->metaData();
 
+    if (!m_musicplaylist) return;
+    const int currentIndex = m_playerController->GetCurrentIndex();
+    if (currentIndex < 0 || currentIndex >= m_musicplaylist->Getsize()) {
+        return;
+    }
+    const bool isCloudTrack = !m_musicplaylist->cloudSongIdAt(currentIndex).isEmpty();
+
     MarqueeLabel *artistlabel = ui->Controlwidget->findChild<MarqueeLabel*>("artistlabel");
     MarqueeLabel *namelabel = ui->Controlwidget->findChild<MarqueeLabel*>("namelabel");
 
-    bool image_flag = true;
+    bool image_flag = false;
 
-    // 设置默认文本
-    if (namelabel) namelabel->setText("未知曲目");
-    ui->songnamelabel->setText("未知曲目");
-    if (artistlabel) artistlabel->setText("未知艺术家");
+    // 云歌曲优先用播放列表缓存，避免状态变化时闪回“未知/默认图”。
+    if (isCloudTrack) {
+        const QString cachedTitle = m_musicplaylist->songTitleAt(currentIndex);
+        const QString cachedArtist = m_musicplaylist->songArtistAt(currentIndex);
+        const QPixmap cachedCover = m_musicplaylist->coverPixmapAt(currentIndex);
+        if (namelabel) namelabel->setText(cachedTitle.isEmpty() ? QStringLiteral("未知曲目") : cachedTitle);
+        ui->songnamelabel->setText(cachedTitle.isEmpty() ? QStringLiteral("未知曲目") : cachedTitle);
+        if (artistlabel) artistlabel->setText(cachedArtist.isEmpty() ? QStringLiteral("未知艺术家") : cachedArtist);
+        if (!cachedCover.isNull()) {
+            ui->imagelabel->setPixmap(cachedCover);
+        } else {
+            image_flag = true;
+        }
+    } else {
+        if (namelabel) namelabel->setText(QStringLiteral("未知曲目"));
+        ui->songnamelabel->setText(QStringLiteral("未知曲目"));
+        if (artistlabel) artistlabel->setText(QStringLiteral("未知艺术家"));
+        image_flag = true;
+    }
 
     for (auto &&[key, value] : metaData.asKeyValueRange())
     {
-        if(key == QMediaMetaData::ThumbnailImage)
+        if (key == QMediaMetaData::ThumbnailImage)
         {
             image_flag = false;
             ui->imagelabel->setPixmap(QPixmap::fromImage(value.value<QImage>()));
         }
-        else if(key == QMediaMetaData::ContributingArtist)
+        // 云来源歌曲：标题/歌手只使用播放列表缓存值，不再被媒体元数据覆盖。
+        else if (!isCloudTrack && key == QMediaMetaData::ContributingArtist)
         {
             if (artistlabel) artistlabel->setText(value.toString());
         }
-        else if(key == QMediaMetaData::Title)
+        else if (!isCloudTrack && key == QMediaMetaData::Title)
         {
             if (namelabel) namelabel->setText(value.toString());
             ui->songnamelabel->setText(value.toString());
@@ -484,16 +966,19 @@ void MainWindow::UpdateMetadata()
     if(image_flag) ui->imagelabel->setPixmap(QPixmap(":/res/misaka.png"));
 
     // 设置歌词：根据当前播放索引加载对应 .lrc 文件
-    if (!m_musicplaylist) return;
-
-    int currentIndex = m_playerController->GetCurrentIndex();
-    if (currentIndex < 0 || currentIndex >= m_musicplaylist->Getsize()) {
-        return;
-    }
-
     QString filePath = m_musicplaylist->Geturl(currentIndex).toLocalFile();
     if (!filePath.isEmpty()) {
         loadLyrics(filePath);
+        return;
+    }
+
+    // 云来源歌曲：每次进入播放都重新向后端请求一次歌词，避免二次播放沿用过期状态。
+    const QString cloudSongId = m_musicplaylist->cloudSongIdAt(currentIndex);
+    if (!cloudSongId.isEmpty() && m_cloudService) {
+        const quint64 reqId = ++m_cloudRequestSeq;
+        m_latestLyricsRequestId = reqId;
+        m_pendingLyricsSongId = cloudSongId;
+        m_cloudService->fetchLyrics(cloudSongId, reqId);
     }
 }
 
@@ -779,8 +1264,8 @@ void MainWindow::moremenubuttonclick()
         }
         else
         {
-            int target_x = ui->moreButton->x() + ui->Controlwidget->x() + ui->toolWidget->x();
-            int target_y = ui->moreButton->y() + ui->Controlwidget->y() + ui->toolWidget->y() - 50;
+            int target_x = ui->moreButton->x() + ui->Controlwidget->x() + ui->toolWidget->x() - 30;
+            int target_y = ui->moreButton->y() + ui->Controlwidget->y() + ui->toolWidget->y() - 180;
             m_moremenuwindow->move(target_x, target_y);
             m_moremenuwindow->show();
         }

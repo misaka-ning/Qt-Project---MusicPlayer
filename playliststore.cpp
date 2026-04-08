@@ -42,6 +42,12 @@ QString PlaylistStore::makeKeyFromUrlString(const QString& urlString)
     return QString::fromLatin1(QUrl::toPercentEncoding(urlString));
 }
 
+QString PlaylistStore::makeKeyForCloudSongId(const QString& songId)
+{
+    if (songId.isEmpty()) return {};
+    return QStringLiteral("cloud_%1").arg(QString::fromLatin1(QUrl::toPercentEncoding(songId)));
+}
+
 QString PlaylistStore::coverRelPathForKey(const QString& key)
 {
     return QStringLiteral("Metadata/%1.png").arg(key);
@@ -64,6 +70,15 @@ int PlaylistStore::findIndexByUrl(const QString& urlString) const
 {
     for (int i = 0; i < m_tracks.size(); ++i) {
         if (m_tracks[i].url == urlString) return i;
+    }
+    return -1;
+}
+
+int PlaylistStore::findIndexByCloudSongId(const QString& songId) const
+{
+    if (songId.isEmpty()) return -1;
+    for (int i = 0; i < m_tracks.size(); ++i) {
+        if (m_tracks[i].cloudSongId == songId) return i;
     }
     return -1;
 }
@@ -99,13 +114,20 @@ bool PlaylistStore::load()
         Track t;
         t.key = o.value(QStringLiteral("key")).toString();
         t.url = o.value(QStringLiteral("url")).toString();
+        t.isCloudTrack = o.value(QStringLiteral("isCloudTrack")).toBool(false);
         t.hasMetadata = o.value(QStringLiteral("hasMetadata")).toBool(false);
         t.title = o.value(QStringLiteral("title")).toString();
         t.artist = o.value(QStringLiteral("artist")).toString();
         t.coverPath = o.value(QStringLiteral("coverPath")).toString();
+        t.cloudSongId = o.value(QStringLiteral("cloudSongId")).toString();
 
         if (t.url.isEmpty()) continue;
-        if (t.key.isEmpty()) t.key = makeKeyFromUrlString(t.url);
+        if (!t.cloudSongId.isEmpty()) {
+            t.key = makeKeyForCloudSongId(t.cloudSongId);
+            t.isCloudTrack = true;
+        } else if (t.key.isEmpty()) {
+            t.key = makeKeyFromUrlString(t.url);
+        }
         if (t.coverPath.isEmpty()) t.coverPath = coverRelPathForKey(t.key);
 
         m_tracks.push_back(std::move(t));
@@ -124,10 +146,14 @@ bool PlaylistStore::saveAtomic() const
         QJsonObject o;
         o.insert(QStringLiteral("key"), t.key);
         o.insert(QStringLiteral("url"), t.url);
+        o.insert(QStringLiteral("isCloudTrack"), t.isCloudTrack);
         o.insert(QStringLiteral("hasMetadata"), t.hasMetadata);
         o.insert(QStringLiteral("title"), t.title);
         o.insert(QStringLiteral("artist"), t.artist);
         o.insert(QStringLiteral("coverPath"), t.coverPath);
+        if (!t.cloudSongId.isEmpty()) {
+            o.insert(QStringLiteral("cloudSongId"), t.cloudSongId);
+        }
         tracks.append(o);
     }
     root.insert(QStringLiteral("tracks"), tracks);
@@ -158,6 +184,7 @@ int PlaylistStore::upsertTrack(const QString& urlString)
     Track t;
     t.key = key;
     t.url = urlString;
+    t.isCloudTrack = false;
     t.hasMetadata = false;
     t.coverPath = coverRelPathForKey(key);
     m_tracks.push_back(std::move(t));
@@ -180,6 +207,64 @@ bool PlaylistStore::markMetadata(const QString& urlString, const QPixmap& cover,
 
     const QPixmap finalCover = cover.isNull() ? QPixmap(QStringLiteral(":/res/misaka.png")) : cover;
     finalCover.save(coverAbsPathForKey(t.key), "PNG");
+    return true;
+}
+
+bool PlaylistStore::markMetadataByKey(const QString& key, const QPixmap& cover, const QString& title, const QString& artist)
+{
+    const int idx = findIndexByKey(key);
+    if (idx < 0) return false;
+
+    ensureMetadataDir();
+
+    Track& t = m_tracks[idx];
+    t.hasMetadata = true;
+    t.title = title;
+    t.artist = artist;
+    t.coverPath = coverRelPathForKey(t.key);
+
+    const QPixmap finalCover = cover.isNull() ? QPixmap(QStringLiteral(":/res/misaka.png")) : cover;
+    finalCover.save(coverAbsPathForKey(t.key), "PNG");
+    return true;
+}
+
+int PlaylistStore::upsertCloudTrack(const QString& songId, const QString& playUrlString)
+{
+    if (songId.isEmpty() || playUrlString.isEmpty()) return -1;
+    const QString key = makeKeyForCloudSongId(songId);
+    int idx = findIndexByCloudSongId(songId);
+    if (idx >= 0) {
+        Track &t = m_tracks[idx];
+        t.url = playUrlString;
+        t.key = key;
+        t.cloudSongId = songId;
+        t.isCloudTrack = true;
+        if (t.coverPath.isEmpty()) t.coverPath = coverRelPathForKey(key);
+        return idx;
+    }
+
+    Track t;
+    t.key = key;
+    t.url = playUrlString;
+    t.cloudSongId = songId;
+    t.isCloudTrack = true;
+    t.hasMetadata = false;
+    t.coverPath = coverRelPathForKey(key);
+    m_tracks.push_back(std::move(t));
+    return m_tracks.size() - 1;
+}
+
+bool PlaylistStore::removeTrackByKey(const QString& key)
+{
+    if (key.isEmpty()) return false;
+    const int idx = findIndexByKey(key);
+    if (idx < 0) return false;
+
+    const QString coverAbs = coverAbsPathForKey(m_tracks[idx].key);
+    m_tracks.removeAt(idx);
+    if (QFile::exists(coverAbs)) {
+        QFile::remove(coverAbs);
+    }
     return true;
 }
 

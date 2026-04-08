@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QRandomGenerator>
 #include <QTimer>
+#include <QtGlobal>
 
 namespace {
 bool isSupportedAudioFile(const QString& filePath)
@@ -36,13 +37,21 @@ PlayerController::PlayerController(QObject *parent)
     m_player->setAudioOutput(m_audioOutput);
 
     // 部分音频在 play() 后会停留在 0ms 不前进（直到发生一次 seek），这里做一次“卡住检测”自动唤醒。
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     connect(m_player, &QMediaPlayer::playbackStateChanged, this, [this](QMediaPlayer::PlaybackState state) {
+#else
+    connect(m_player, QOverload<QMediaPlayer::State>::of(&QMediaPlayer::stateChanged), this, [this](QMediaPlayer::State state) {
+#endif
         if (state != QMediaPlayer::PlayingState) return;
 
         const int token = ++m_playToken;
         QTimer::singleShot(200, this, [this, token]() {
             if (token != m_playToken) return; // 已经切换了歌曲/状态，丢弃
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             if (m_player->playbackState() != QMediaPlayer::PlayingState) return;
+#else
+            if (m_player->state() != QMediaPlayer::PlayingState) return;
+#endif
             if (m_player->mediaStatus() != QMediaPlayer::LoadedMedia &&
                 m_player->mediaStatus() != QMediaPlayer::BufferedMedia &&
                 m_player->mediaStatus() != QMediaPlayer::StalledMedia)
@@ -149,9 +158,9 @@ void PlayerController::InitPlayList(MusicPlaylist *playlist)
             QString artist = t.artist;
             if (artist.isEmpty()) artist = "未知艺术家";
 
-            m_musicplaylist->AppendMusic(cover, url, title, artist);
+            m_musicplaylist->AppendMusic(cover, url, title, artist, t.cloudSongId);
         } else {
-            m_musicplaylist->AppendMusic(defaultCover, url, "加载中", "加载中");
+            m_musicplaylist->AppendMusic(defaultCover, url, "加载中", "加载中", t.cloudSongId);
             if (m_pool) {
                 m_pool->addTask(url, index);
             }
@@ -197,6 +206,7 @@ void PlayerController::InitPlayList(MusicPlaylist *playlist)
 
     if (m_pool) m_pool->start();
 
+    rebuildUrlToIndex();
     m_shuffleOrder.clear();
     m_shuffleIndex = 0;
 
@@ -207,6 +217,131 @@ void PlayerController::InitPlayList(MusicPlaylist *playlist)
     }
 
     emit playlistAvailabilityChanged(!m_musicplaylist->isempty());
+}
+
+void PlayerController::rebuildUrlToIndex()
+{
+    m_urlToIndex.clear();
+    if (!m_musicplaylist) return;
+    for (int i = 0; i < m_musicplaylist->Getsize(); ++i) {
+        const QUrl u = m_musicplaylist->Geturl(i);
+        if (u.isValid()) m_urlToIndex[u] = i;
+    }
+}
+
+void PlayerController::refreshPlaylistIndex()
+{
+    rebuildUrlToIndex();
+    emit playlistAvailabilityChanged(m_musicplaylist && !m_musicplaylist->isempty());
+}
+
+int PlayerController::addOrUpdateCloudTrackAndPlay(const QString& songId, const QUrl& playUrl,
+                                                   const QString& title, const QString& artist,
+                                                   const QPixmap& cover)
+{
+    if (!m_musicplaylist || songId.trimmed().isEmpty() || !playUrl.isValid()) return -1;
+
+    const QString sid = songId.trimmed();
+    const QString finalTitle = title.trimmed().isEmpty() ? QStringLiteral("未知曲目") : title.trimmed();
+    const QString finalArtist = artist.trimmed().isEmpty() ? QStringLiteral("未知艺术家") : artist.trimmed();
+    const QPixmap finalCover = cover.isNull() ? QPixmap(QStringLiteral(":/res/misaka.png")) : cover;
+
+    int index = m_musicplaylist->findIndexByCloudSongId(sid);
+    if (index >= 0) {
+        m_musicplaylist->setSongUrlAt(index, playUrl);
+        m_musicplaylist->updateItem(index, finalCover, finalTitle, finalArtist);
+    } else {
+        index = m_musicplaylist->appendSong(finalCover, playUrl, finalTitle, finalArtist, sid);
+    }
+
+    m_store.load();
+    const int storeIndex = m_store.upsertCloudTrack(sid, playUrl.toString());
+    if (storeIndex >= 0) {
+        const QString key = PlaylistStore::makeKeyForCloudSongId(sid);
+        m_store.markMetadataByKey(key, finalCover, finalTitle, finalArtist);
+        m_store.saveAtomic();
+    }
+
+    rebuildUrlToIndex();
+    if (m_nextmode == Loop_Play) {
+        // Playlist size/index changed; regenerate shuffle mapping to avoid stale indices.
+        UpdateRandomArray();
+    }
+    m_playnum = index;
+    m_player->setSource(playUrl);
+    m_player->play();
+    emit playlistAvailabilityChanged(true);
+    return index;
+}
+
+bool PlayerController::applyCoverToPlaylistIndex(int playlistIndex, const QPixmap& cover,
+                                                 const QString& title, const QString& artist)
+{
+    if (!m_musicplaylist) return false;
+    if (playlistIndex < 0 || playlistIndex >= m_musicplaylist->Getsize()) return false;
+    const QString sid = m_musicplaylist->cloudSongIdAt(playlistIndex);
+    if (sid.isEmpty()) return false;
+
+    const QPixmap finalCover = cover.isNull() ? QPixmap(QStringLiteral(":/res/misaka.png")) : cover;
+    m_musicplaylist->updateItem(playlistIndex, finalCover,
+                                title.isEmpty() ? m_musicplaylist->songTitleAt(playlistIndex) : title,
+                                artist.isEmpty() ? m_musicplaylist->songArtistAt(playlistIndex) : artist);
+
+    m_store.load();
+    const QString key = PlaylistStore::makeKeyForCloudSongId(sid);
+    if (!m_store.markMetadataByKey(key, finalCover,
+                                   m_musicplaylist->songTitleAt(playlistIndex),
+                                   m_musicplaylist->songArtistAt(playlistIndex))) {
+        return false;
+    }
+    return m_store.saveAtomic();
+}
+
+bool PlayerController::removeCurrentSong()
+{
+    if (!m_musicplaylist || m_musicplaylist->isempty()) return false;
+    if (!ensureValidPlayIndex()) return false;
+
+    const int removingIndex = m_playnum;
+    const QUrl removingUrl = m_musicplaylist->Geturl(removingIndex);
+    const QString sid = m_musicplaylist->cloudSongIdAt(removingIndex);
+    const QString key = sid.isEmpty()
+                            ? PlaylistStore::makeKeyFromUrlString(removingUrl.toString())
+                            : PlaylistStore::makeKeyForCloudSongId(sid);
+
+    m_store.load();
+    const bool removedFromStore = m_store.removeTrackByKey(key);
+    if (removedFromStore) {
+        m_store.saveAtomic();
+    }
+
+    m_musicplaylist->removeSongAt(removingIndex);
+    rebuildUrlToIndex();
+
+    if (m_musicplaylist->isempty()) {
+        m_player->stop();
+        m_player->setSource(QUrl());
+        m_playnum = 0;
+        emit playlistAvailabilityChanged(false);
+        return true;
+    }
+
+    if (m_playnum > removingIndex) {
+        --m_playnum;
+    }
+    if (m_playnum >= m_musicplaylist->Getsize()) {
+        m_playnum = m_musicplaylist->Getsize() - 1;
+    }
+
+    if (m_nextmode == Loop_Play) {
+        // Rebuild random order after deletion so m_shuffleIndex maps to valid indices.
+        UpdateRandomArray();
+    }
+
+    m_player->setSource(m_musicplaylist->Geturl(m_playnum));
+    m_player->play();
+    emit playlistAvailabilityChanged(true);
+    return true;
 }
 
 void PlayerController::AddLocalFiles(const QStringList& filePaths)
@@ -315,7 +450,16 @@ void PlayerController::PlaySong()
     if (!m_musicplaylist || m_musicplaylist->isempty()) return;
     if (!ensureValidPlayIndex()) return;
 
-    m_player->setSource(m_musicplaylist->Geturl(m_playnum));
+    const QUrl source = m_musicplaylist->Geturl(m_playnum);
+    if (!source.isValid() || source.isEmpty()) {
+        const QString sid = m_musicplaylist->cloudSongIdAt(m_playnum);
+        if (!sid.isEmpty()) {
+            emit cloudTrackResolveRequested(sid);
+        }
+        return;
+    }
+
+    m_player->setSource(source);
 
     if (m_autoplay)
     {
@@ -338,7 +482,15 @@ void PlayerController::PlayPrevSong()
 {
     if (!m_musicplaylist || m_musicplaylist->isempty()) return;
     if (!ensureValidPlayIndex()) return;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (m_player->isPlaying()) m_autoplay = true;
+#else
+    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
+#endif
+#else
+    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
+#endif
 
     // 单曲循环不需要换源文件
     if(m_nextmode == Repeat_Play)
@@ -379,7 +531,15 @@ void PlayerController::PlayNextSong()
 {
     if (!m_musicplaylist || m_musicplaylist->isempty()) return;
     if (!ensureValidPlayIndex()) return;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (m_player->isPlaying()) m_autoplay = true;
+#else
+    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
+#endif
+#else
+    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
+#endif
 
     // 单曲循环不需要换源文件
     if(m_nextmode == Repeat_Play)
@@ -467,7 +627,15 @@ void PlayerController::OnChooseMusic(int id)
     {
         m_playnum = id;
     }
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (m_player->isPlaying()) m_autoplay = true;
+#else
+    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
+#endif
+#else
+    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
+#endif
     PlaySong();
 }
 
