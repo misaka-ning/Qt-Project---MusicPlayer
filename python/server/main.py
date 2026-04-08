@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from contextlib import contextmanager
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -32,6 +33,9 @@ from pydantic import BaseModel, Field
 from pyncm import apis
 from pyncm.apis import login as ncm_login
 from pyncm.apis.exception import LoginFailedException
+from config import ServerRuntimeConfig
+from helpers.response_guards import extract_payload_message, is_success_payload
+from utils.session_utils import extract_music_u_from_payload
 
 
 @dataclass(frozen=True)
@@ -65,6 +69,51 @@ class ResponseFactory:
         return JSONResponse(status_code=status, content={"code": status, "message": message, "data": {}})
 
 
+PROXY_ENV_KEYS = (
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+)
+NO_PROXY_KEYS = ("NO_PROXY", "no_proxy")
+
+
+@contextmanager
+def pyncm_no_proxy_env():
+    """
+    临时清空代理环境变量，避免本机失效代理导致 pyncm 请求失败（WinError 10061）。
+    退出时恢复原值，保证对外部环境无副作用。
+    """
+    saved: dict[str, str] = {}
+    removed: list[str] = []
+    for key in PROXY_ENV_KEYS:
+        if key in os.environ:
+            saved[key] = os.environ[key]
+            del os.environ[key]
+            removed.append(key)
+    original_no_proxy: dict[str, str] = {key: os.environ[key] for key in NO_PROXY_KEYS if key in os.environ}
+    os.environ["NO_PROXY"] = "*"
+    os.environ["no_proxy"] = "*"
+    try:
+        yield
+    finally:
+        for key in NO_PROXY_KEYS:
+            if key in original_no_proxy:
+                os.environ[key] = original_no_proxy[key]
+            elif key in os.environ:
+                del os.environ[key]
+        for key in removed:
+            if key in saved:
+                os.environ[key] = saved[key]
+
+
+def call_pyncm_no_proxy(fn, *args: Any, **kwargs: Any):
+    with pyncm_no_proxy_env():
+        return fn(*args, **kwargs)
+
+
 class SessionRepository:
     """
     登录会话仓储（Repository）。
@@ -79,17 +128,7 @@ class SessionRepository:
         try:
             session = ncm_login.GetCurrentSession()
             payload = session.dump() if session is not None else {}
-            music_u = ""
-            if isinstance(payload, dict):
-                cookies = payload.get("cookies")
-                if isinstance(cookies, list):
-                    for c in cookies:
-                        if not isinstance(c, dict):
-                            continue
-                        if str(c.get("name", "")).strip() == "MUSIC_U":
-                            music_u = str(c.get("value", "")).strip()
-                            if music_u:
-                                break
+            music_u = extract_music_u_from_payload(payload) if isinstance(payload, dict) else ""
             out = {"music_u": music_u, "session_dump": payload}
             with open(self._config.session_file, "w", encoding="utf-8") as f:
                 json.dump(out, f, ensure_ascii=False)
@@ -115,27 +154,19 @@ class SessionRepository:
             elif isinstance(raw, dict):
                 # 兼容旧格式：直接 session.dump()
                 payload = raw
-                cookies = raw.get("cookies")
-                if isinstance(cookies, list):
-                    for c in cookies:
-                        if not isinstance(c, dict):
-                            continue
-                        if str(c.get("name", "")).strip() == "MUSIC_U":
-                            music_u = str(c.get("value", "")).strip()
-                            if music_u:
-                                break
+                music_u = extract_music_u_from_payload(raw)
 
             # 优先使用 MUSIC_U 恢复（跨进程重启更稳定）
             if music_u:
                 try:
-                    ncm_login.LoginViaCookie(MUSIC_U=music_u)
+                    call_pyncm_no_proxy(ncm_login.LoginViaCookie, MUSIC_U=music_u)
                     return
                 except Exception:
                     pass
 
             # 兜底：尝试恢复完整会话
             if payload:
-                ncm_login.WriteLoginInfo(payload)
+                call_pyncm_no_proxy(ncm_login.WriteLoginInfo, payload)
         except Exception:
             pass
 
@@ -155,12 +186,13 @@ class NeteaseHttpClient:
 
     def __init__(self, config: AppConfig) -> None:
         self._config = config
+        self._runtime = ServerRuntimeConfig()
 
-    def get_json(self, url: str, timeout: float = 12.0) -> Any:
+    def get_json(self, url: str, timeout: float | None = None) -> Any:
         """直连上游，不使用环境变量里的 HTTP(S)_PROXY，避免本机代理未启动时出现 WinError 10061。"""
         req = urllib.request.Request(url, headers={"User-Agent": self._config.user_agent, "Referer": self._config.referer})
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        with opener.open(req, timeout=timeout) as resp:
+        with opener.open(req, timeout=timeout or self._runtime.request_timeout_sec) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
         return json.loads(raw)
 
@@ -175,7 +207,7 @@ class NeteaseHttpClient:
             upstream_headers["Range"] = request_range.strip()
         req = urllib.request.Request(url, headers=upstream_headers)
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        return opener.open(req, timeout=20.0)
+        return opener.open(req, timeout=self._runtime.stream_timeout_sec)
 
 
 class SongMapper:
@@ -229,16 +261,16 @@ class NeteaseGateway:
         return self._http.get_json(f"https://music.163.com/api/cloudsearch/pc?{q}")
 
     def get_track_audio(self, song_id: int) -> Any:
-        return apis.track.GetTrackAudio(song_id, bitrate=320000, encodeType="mp3")
+        return call_pyncm_no_proxy(apis.track.GetTrackAudio, song_id, bitrate=320000, encodeType="mp3")
 
     def get_track_detail(self, song_id: int) -> Any:
-        return apis.track.GetTrackDetail(song_id)
+        return call_pyncm_no_proxy(apis.track.GetTrackDetail, song_id)
 
     def get_track_lyrics(self, song_id: int) -> Any:
         getter = getattr(apis.track, "GetTrackLyrics", None) or getattr(apis.track, "GetTrackLyric", None)
         if getter is None:
             raise RuntimeError("pyncm lyric api unavailable")
-        return getter(song_id)
+        return call_pyncm_no_proxy(getter, song_id)
 
     def stream_upstream(self, src: str, request_range: str | None):
         return self._http.open_stream(src, request_range)
@@ -254,7 +286,7 @@ class NeteaseGateway:
             if fn is None:
                 continue
             try:
-                return fn(*args, **kwargs)
+                return call_pyncm_no_proxy(fn, *args, **kwargs)
             except TypeError as e:
                 last_err = e
                 continue
@@ -298,6 +330,7 @@ class MusicService:
 
     def __init__(self, gateway: NeteaseGateway) -> None:
         self._gateway = gateway
+        self._runtime = ServerRuntimeConfig()
 
     @staticmethod
     def _playback_denied_message(fee: int, st: int) -> str:
@@ -329,8 +362,8 @@ class MusicService:
 
         if not isinstance(data, dict):
             return ResponseFactory.fail_json(502, "invalid netease response")
-        if data.get("code") != 200:
-            return ResponseFactory.fail_json(502, str(data.get("message") or data.get("msg") or "search failed"))
+        if not is_success_payload(data):
+            return ResponseFactory.fail_json(502, extract_payload_message(data, "search failed"))
 
         result = data.get("result")
         if not isinstance(result, dict):
@@ -353,7 +386,7 @@ class MusicService:
             raw = self._gateway.get_track_detail(song_id)
         except Exception:
             return None
-        if not isinstance(raw, dict) or SongMapper.safe_int(raw.get("code", -1), -1) != 200:
+        if not is_success_payload(raw):
             return None
         songs = raw.get("songs")
         if not isinstance(songs, list) or not songs or not isinstance(songs[0], dict):
@@ -369,7 +402,7 @@ class MusicService:
             raw = self._gateway.get_track_detail(song_id)
         except Exception:
             return (0, 0)
-        if not isinstance(raw, dict) or SongMapper.safe_int(raw.get("code", -1), -1) != 200:
+        if not is_success_payload(raw):
             return (0, 0)
         songs = raw.get("songs")
         if not isinstance(songs, list) or not songs or not isinstance(songs[0], dict):
@@ -393,8 +426,8 @@ class MusicService:
 
         if not isinstance(raw, dict):
             return ResponseFactory.fail_json(502, "invalid pyncm response")
-        if SongMapper.safe_int(raw.get("code", -1), -1) != 200:
-            return ResponseFactory.fail_json(502, str(raw.get("message") or raw.get("msg") or "netease player url error"))
+        if not is_success_payload(raw):
+            return ResponseFactory.fail_json(502, extract_payload_message(raw, "netease player url error"))
 
         arr = raw.get("data")
         if not isinstance(arr, list) or not arr or not isinstance(arr[0], dict):
@@ -414,7 +447,7 @@ class MusicService:
         data_out: dict[str, Any] = {
             "url": u,
             "originUrl": u,
-            "proxyUrl": f"http://127.0.0.1:8000/song/stream?{stream_q}",
+            "proxyUrl": f"http://{self._runtime.default_host}:{self._runtime.default_port}/song/stream?{stream_q}",
         }
         brief = self.fetch_track_detail_brief(sid_i)
         if brief:
@@ -450,7 +483,7 @@ class MusicService:
         def iter_chunks():
             try:
                 while True:
-                    chunk = resp.read(64 * 1024)
+                    chunk = resp.read(self._runtime.stream_chunk_size)
                     if not chunk:
                         break
                     yield chunk
@@ -487,7 +520,7 @@ class AuthService:
     @staticmethod
     def get_login_status() -> tuple[bool, str]:
         try:
-            raw = ncm_login.GetCurrentLoginStatus()
+            raw = call_pyncm_no_proxy(ncm_login.GetCurrentLoginStatus)
         except Exception:
             return (False, "")
         if not isinstance(raw, dict) or SongMapper.safe_int(raw.get("code", -1), -1) != 200:
@@ -505,7 +538,7 @@ class AuthService:
         if not phone_s:
             return {"code": 400, "message": "手机号为空", "data": {}}
         try:
-            ncm_login.LoginViaCellphone(phone=phone_s, password=password, ctcode=countrycode)
+            call_pyncm_no_proxy(ncm_login.LoginViaCellphone, phone=phone_s, password=password, ctcode=countrycode)
         except LoginFailedException as e:
             return {"code": 401, "message": str(e) or "登录失败", "data": {}}
         except Exception as e:
@@ -520,7 +553,7 @@ class AuthService:
 
     def logout(self) -> dict[str, Any]:
         try:
-            ncm_login.LoginLogout()
+            call_pyncm_no_proxy(ncm_login.LoginLogout)
         except Exception:
             pass
         self._session_repo.clear()
@@ -706,6 +739,34 @@ def song_stream(
     return container.music_service.stream(request, song_id, src)
 
 
+@app.get("/cover/fetch")
+def cover_fetch(url: str = Query(..., min_length=1)):
+    src = url.strip()
+    if not (src.startswith("http://") or src.startswith("https://")):
+        return ResponseFactory.fail_json(400, "invalid cover url")
+    try:
+        resp = container.http_client.open_stream(src, None)
+    except urllib.error.HTTPError as e:
+        return ResponseFactory.fail_json(e.code, f"cover upstream http {e.code}")
+    except urllib.error.URLError as e:
+        return ResponseFactory.fail_json(502, f"cover upstream error: {e.reason}")
+
+    content_type = resp.headers.get("Content-Type", "image/jpeg")
+    status_code = getattr(resp, "status", None) or 200
+
+    def iter_chunks():
+        try:
+            while True:
+                chunk = resp.read(ServerRuntimeConfig().stream_chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            resp.close()
+
+    return StreamingResponse(iter_chunks(), media_type=content_type, status_code=status_code)
+
+
 @app.get("/lyrics", response_model=None)
 def lyrics(song_id: str = Query(..., alias="songId", min_length=1)) -> Union[dict[str, Any], JSONResponse]:
     return container.music_service.lyrics(song_id)
@@ -752,5 +813,5 @@ def auth_qr_check(unikey: str = Query(..., min_length=1)) -> dict[str, Any]:
 
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    runtime = ServerRuntimeConfig()
+    uvicorn.run(app, host=runtime.default_host, port=runtime.default_port)

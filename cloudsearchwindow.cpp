@@ -10,6 +10,7 @@
 CloudSearchWindow::CloudSearchWindow(QWidget *parent)
     : QDialog(parent)
 {
+    // 作为非模态结果窗，方便与主界面并行操作。
     setWindowTitle(QStringLiteral("搜索结果"));
     setModal(false);
     resize(520, 620);
@@ -44,6 +45,7 @@ void CloudSearchWindow::setResults(const QVector<CloudMusicService::CloudSongBri
     m_songs = songs;
     if (m_list) m_list->clear();
 
+    // 将后端字段转为更友好的列表文案，并补充状态标签。
     for (const auto& s : m_songs) {
         const QString title = s.name.trimmed().isEmpty() ? QStringLiteral("未知曲目") : s.name.trimmed();
         const QString artist = s.artist.trimmed().isEmpty() ? QStringLiteral("未知艺术家") : s.artist.trimmed();
@@ -77,6 +79,7 @@ void CloudSearchWindow::setResults(const QVector<CloudMusicService::CloudSongBri
 
 void CloudSearchWindow::activateCurrent()
 {
+    // 仅在存在有效 songId 时发出激活信号。
     if (!m_list) return;
     QListWidgetItem *cur = m_list->currentItem();
     if (!cur) return;

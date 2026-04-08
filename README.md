@@ -1,9 +1,10 @@
 # MusicPlayer
 
-一个基于 **Qt 6.8.3** 的本地音乐播放器，支持播放本地音频文件、展示封面和歌曲信息、歌词滚动显示、列表循环 / 随机播放 / 单曲循环等功能。UI 使用 Qt Widgets 实现，整体风格简单清爽。
+一个基于 **Qt 6.8.3** 的桌面音乐播放器，采用 **Qt 客户端 + Python FastAPI 本地后端** 双端架构。客户端负责播放控制、歌词渲染与交互体验，Python 后端负责对接网易云接口、会话管理、云歌曲链接解析与音频/封面代理，避免把第三方协议细节直接耦合到 C++ 侧。项目支持本地音乐播放与云端搜索播放，包含封面展示、歌词滚动显示、列表循环 / 随机播放 / 单曲循环，以及网易云账号登录（含二维码登录）等功能。
 
 > 作者：**misaka**  
 > 项目类型：个人学习 / 练手项目
+> B站介绍视频：https://www.bilibili.com/video/BV1tMwCz9ELE?vd_source=5c1b12b66171a9862c79dcafb489f9b8
 
 ---
 
@@ -12,6 +13,11 @@
 - **本地音乐扫描**
   - 启动后自动扫描可执行文件同目录下的 `MusicList` 文件夹。
   - 支持的音频格式：`mp3 / wav / flac / aac / ogg / m4a / wma`。
+
+- **云音乐搜索与播放**
+  - 支持在主界面搜索框搜索云端歌曲（回车或点击搜索）。
+  - 选中搜索结果后自动解析可播放链接并加入列表播放。
+  - 自动拉取云端封面与歌词，并在本地缓存歌词到 `CloudLyrics/`。
 
 - **播放控制**
   - 播放 / 暂停、上一首、下一首。
@@ -33,6 +39,12 @@
   - 支持 `.lrc` 歌词文件（与音频文件同名、同目录）。
   - 支持多种编码自动识别（UTF‑8、GBK、GB2312、GB18030、UTF‑16 等）。
   - 通过 `LrcParser` 解析时间戳，`QListWidget` 同步高亮当前行并居中滚动显示。
+  - 云端歌曲歌词由本地 Python 服务拉取后按 `songId.lrc` 缓存。
+
+- **网易云账号登录**
+  - 支持菜单中触发网易云登录/退出。
+  - 支持二维码登录流程：请求 unikey -> 获取二维码 URL -> 轮询登录状态。
+  - 启动时自动尝试恢复上次登录会话状态。
 
 - **UI 与交互**
   - 控制面板采用圆角白色卡片风格。
@@ -44,7 +56,7 @@
 
 ## 代码框架与数据流
 
-本项目是一个典型的 **Qt Widgets 单窗口应用**：`MainWindow` 负责 UI 呈现与交互协调；`PlayerController` 负责播放控制与业务逻辑；播放列表、歌词、元数据解析与本地持久化各自拆分成独立组件。
+本项目由 **Qt 客户端 + Python 本地服务** 组成：`MainWindow` 负责 UI 呈现与交互协调；`PlayerController` 负责播放控制与业务逻辑；`CloudMusicService` 负责与本地 API 交互；播放列表、歌词、元数据解析与持久化各自拆分成独立组件。
 
 - **入口层**
   - `main.cpp`：创建 `QApplication`，设置窗口图标，显示 `MainWindow`，进入事件循环。
@@ -56,17 +68,20 @@
   - `MoreMenu`：更多菜单（运行期添加本地音乐）。
 - **控制层（业务）**
   - `PlayerController`：持有主 `QMediaPlayer`/`QAudioOutput`，管理播放模式（`List_Play`/`Loop_Play`/`Repeat_Play`）、上一首/下一首、自动下一首、与列表/元数据/持久化的交互。
+  - `CloudMusicService`：封装云搜索、歌曲 URL 解析、歌词获取、网易云登录状态查询与二维码登录流程。
 - **服务层（工具/数据）**
   - `MediaPlayerPool`：对象池 + 多 `QMediaPlayer` worker 并发读取 `QMediaMetaData`（标题/艺术家/封面）。
   - `LrcParser`：多编码读取 `.lrc` 并解析时间戳，提供按播放进度定位当前行。
-  - `PlaylistStore`：加载/保存 `playlist.json`，缓存封面到 `Metadata/`，实现“重启后恢复列表与元数据”。
+  - `PlaylistStore`：加载/保存 `playlist.json`，缓存封面到 `Metadata/`，并持久化云歌曲记录（`cloudSongId`）。
+  - `python/server/main.py`（FastAPI）：对接 pyncm，提供 `/search`、`/song/url`、`/lyrics`、`/auth/*` 等本地接口。
 
-### 主流程（启动 → 列表 → 元数据 → 播放/歌词）
+### 主流程（启动 → 本地播放 / 云播放）
 
 ```mermaid
 flowchart TD
   AppStart[main.cpp] --> MainWindowCtor[MainWindow]
   MainWindowCtor --> PlayerControllerCtor[PlayerController]
+  MainWindowCtor --> CloudServiceCtor[CloudMusicService]
   MainWindowCtor --> InitPlayList[MainWindow::InitPlayList]
   InitPlayList --> ControllerInit[PlayerController::InitPlayList]
   ControllerInit --> PlaylistStoreLoad[PlaylistStore::load]
@@ -83,6 +98,27 @@ flowchart TD
   OnChooseMusic --> SetSource[QMediaPlayer::setSource]
   SetSource --> Play[QMediaPlayer::play]
 
+  CloudSearchUI[cloudSearchEdit/cloudSearchButton] --> CloudSearchReq[CloudMusicService::searchSongs]
+  CloudSearchReq --> PySearch["Python API: GET /search"]
+  PySearch --> CloudResultWin[CloudSearchWindow::setResults]
+  CloudResultWin --> ResolveTrack[onCloudTrackResolveRequested]
+  ResolveTrack --> CloudPlayReq[CloudMusicService::fetchPlayableUrl]
+  CloudPlayReq --> PySongUrl["Python API: GET /song/url"]
+  PySongUrl --> AddCloudTrack[PlayerController::addOrUpdateCloudTrackAndPlay]
+  AddCloudTrack --> Play
+  AddCloudTrack --> FetchCloudCover["GET /cover/fetch (proxy)"]
+  AddCloudTrack --> FetchCloudLyrics["GET /lyrics"]
+  FetchCloudLyrics --> SaveCloudLrc[CloudLyrics/songId.lrc]
+  SaveCloudLrc --> LyricsUI
+
+  MoreMenuAuth[MoreMenu 网易云登录按钮] --> QrUnikey[CloudMusicService::requestNeteaseQrUnikey]
+  QrUnikey --> PyAuthUnikey["Python API: POST /auth/qr/unikey"]
+  PyAuthUnikey --> QrUrlReq[CloudMusicService::requestNeteaseQrUrl]
+  QrUrlReq --> PyAuthQrUrl["Python API: GET /auth/qr/url"]
+  PyAuthQrUrl --> QrStatusPoll[CloudMusicService::checkNeteaseQrStatus]
+  QrStatusPoll --> PyAuthQrCheck["Python API: GET /auth/qr/check"]
+  PyAuthQrCheck --> LoginStateUpdate[MoreMenu::setLoginState]
+
   PositionChanged["QMediaPlayer::positionChanged"] --> LrcIndex[LrcParser::currentIndex]
   LrcIndex --> LyricsUI[QListWidget highlight+scroll]
   EndOfMedia["QMediaPlayer::mediaStatusChanged(EndOfMedia)"] --> MusicEnd[PlayerController::MusicEnd]
@@ -91,16 +127,23 @@ flowchart TD
 
 ---
 
-## 对象树（Qt 父子与所有权）
+## 对象与组件结构
 
-以下是关键对象的父子关系（简化版，用于理解生命周期与释放时机）。大多数对象以 `MainWindow` 或 `PlayerController` 为 parent，随其析构自动释放。
+### Qt 客户端对象树（Qt 父子与所有权）
+
+以下是 Qt 客户端关键对象的父子关系（简化版，用于理解生命周期与释放时机）。大多数对象以 `MainWindow` 或 `PlayerController` 为 parent，随其析构自动释放。
 
 - **QApplication**
   - **MainWindow**
     - `Ui::MainWindow` 创建的控件树（来自 `mainwindow.ui`）
-      - `imagelabel`、`lyricsListWidget`、`Slider`、控制区按钮（播放/上一首/下一首/模式/列表）、`MarqueeLabel`（`namelabel`/`artistlabel`）等
+      - `imagelabel`、`lyricsListWidget`、`Slider`、控制区按钮（播放/上一首/下一首/模式/列表/更多）、云搜索输入框与搜索按钮、`MarqueeLabel`（`namelabel`/`artistlabel`）等
     - **m_emptyOverlayLabel**：空列表提示 overlay（QLabel）
     - **m_moremenuwindow**：更多菜单（MoreMenu）
+    - **m_cloudSearchWindow**：云搜索结果窗口（CloudSearchWindow）
+    - **m_cloudService**：云接口客户端（CloudMusicService）
+    - **m_coverNam**：封面/二维码图片网络请求管理器（QNetworkAccessManager）
+    - **m_neteaseQrDialog**：网易云扫码登录弹窗（QDialog）
+      - **m_neteaseQrImageLabel**：二维码图片展示（QLabel）
     - **m_musicplaylist**：播放列表面板（MusicPlaylist）
       - `QScrollArea` + `QVBoxLayout`
       - 多个 **SongUnit**
@@ -112,18 +155,105 @@ flowchart TD
     - **m_lrcParser**：歌词解析器（LrcParser）
     - **m_wheelTimer**：歌词手动滚动恢复计时（QTimer）
 
+### Python 后端组件图（职责与依赖）
+
+```mermaid
+flowchart TD
+  FastAPI[FastAPI app routes] --> Container[AppContainer]
+  Container --> MusicService[MusicService]
+  Container --> AuthService[AuthService]
+  Container --> QrAuthService[QrAuthService]
+  Container --> SessionRepo[SessionRepository]
+  Container --> Gateway[NeteaseGateway]
+  Container --> HttpClient[NeteaseHttpClient]
+  Container --> Logger[DebugLogger]
+
+  MusicService --> Gateway
+  MusicService --> HttpClient
+  AuthService --> SessionRepo
+  QrAuthService --> Gateway
+  QrAuthService --> AuthService
+  QrAuthService --> SessionRepo
+  QrAuthService --> Logger
+  Gateway --> PyNCM[pyncm apis/login]
+  HttpClient --> NeteaseAPI[music.163.com HTTP API]
+  SessionRepo --> SessionFile[netease_session.json]
+```
+
 ---
 
 ## 技术栈
 
-- **语言与标准**：C++17
-- **Qt 版本**：Qt 6.8.3
-  - **Qt Widgets**：界面与交互
-  - **Qt Multimedia**：`QMediaPlayer` / `QAudioOutput` 音频播放与元数据读取（`QMediaMetaData`）
-- **构建系统**：CMake（最低 3.16），启用 `AUTOUIC/AUTOMOC/AUTORCC`
-- **UI**：Qt Designer（`.ui`），QSS（`style.qss`），Qt 资源系统（`res.qrc`）
-- **持久化**：可执行文件目录下 `playlist.json`；封面缓存 `Metadata/<key>.png`（由 `PlaylistStore` 管理）
-- **解析**：`.lrc` 多编码解码（UTF‑8/GBK/GB2312/GB18030/UTF‑16），正则解析时间戳；歌词按时间排序并二分定位
+- **客户端（Desktop App）**
+  - **语言/标准**：`C++17`
+  - **框架**：`Qt 6.8.3`
+    - `Qt Widgets`：窗口、控件、事件过滤、动画交互（播放列表滑入滑出、无边框拖拽缩放）
+    - `Qt Multimedia`：`QMediaPlayer` + `QAudioOutput` 音频播放、媒体状态管理、元数据读取
+    - `Qt Network`：云搜索、播放地址解析、歌词拉取、登录态请求、封面下载
+  - **UI 工程化**：`Qt Designer (.ui)` + `QSS(style.qss)` + `Qt Resource System(res.qrc)`
+  - **并发与异步模型**：基于 Qt 事件循环 + Signal/Slot，网络请求与元数据任务异步回调驱动
+
+- **后端（Local Cloud Gateway）**
+  - **语言**：`Python 3.9+`
+  - **Web 框架**：`FastAPI`（本地 API 编排与契约输出）
+  - **ASGI 服务器**：`uvicorn`
+  - **第三方能力接入**：`pyncm`（网易云搜索、歌曲详情、播放地址、歌词、登录相关能力）
+  - **后端职责**：上游 API 适配、会话持久化、二维码登录兼容、流媒体/封面代理、统一错误模型
+
+- **接口与协议**
+  - **客户端与本地后端**：HTTP/JSON（默认 `http://127.0.0.1:8000`）
+  - **核心接口**：`/search`、`/song/url`、`/song/stream`、`/cover/fetch`、`/lyrics`、`/auth/*`
+  - **流媒体能力**：`Range` 透传 + `206 Partial Content` 兼容，支持播放器 seek 分段拉流
+  - **响应约定**：统一 `code/message/data` 结构，降低 C++ 端解析分支复杂度
+
+- **数据与持久化**
+  - **本地播放数据**：`playlist.json`（播放列表、元数据状态、云歌曲标识）
+  - **封面缓存**：`Metadata/<key>.png`（URL key 化存储，减少重复拉取）
+  - **云歌词缓存**：`CloudLyrics/<songId>.lrc`
+  - **后端会话**：`python/server/netease_session.json`（网易云登录态恢复）
+  - **原子写入策略**：关键清单文件采用安全写入，降低异常退出导致的数据损坏风险
+
+- **构建与运行**
+  - **构建系统**：`CMake >= 3.16`（启用 `AUTOUIC` / `AUTOMOC` / `AUTORCC`）
+  - **Qt 链接模块**：`Qt6::Widgets`、`Qt6::Multimedia`、`Qt6::Network`
+  - **编译器要求**：任意支持 C++17 的工具链（MSVC / Clang / GCC / MinGW）
+  - **部署形态**：本地双进程（Qt GUI 进程 + Python API 进程）
+
+---
+
+## Python 后端实现（V2.0版本主要新增内容）
+
+`python/server/main.py` 是 Qt 客户端的本地云能力中枢，定位是“**网易云能力适配层 + 本地会话与代理层**”。
+
+- **接口契约层（对 Qt 暴露）**
+  - 搜索：`GET /search`
+  - 播放地址：`GET /song/url`
+  - 音频代理流：`GET /song/stream`
+  - 封面代理：`GET /cover/fetch`
+  - 歌词：`GET /lyrics`
+  - 登录与鉴权：`POST /auth/login`、`GET /auth/status`、`POST /auth/logout`
+  - 二维码登录：`POST /auth/qr/unikey`、`GET /auth/qr/url`、`GET /auth/qr/check`
+
+- **内部分层设计**
+  - `AppContainer`：组合根/轻量依赖注入容器，统一组装服务对象。
+  - `MusicService`：搜索、链接解析、歌词、流媒体代理等音乐业务逻辑。
+  - `AuthService`：账号密码登录、登录状态与退出登录。
+  - `QrAuthService`：二维码登录全流程、状态码翻译、登录后会话落盘。
+  - `NeteaseGateway`：第三方调用门面，收敛 pyncm 与原始 HTTP 调用细节。
+  - `NeteaseHttpClient`：统一请求头、超时与流读取策略。
+  - `SessionRepository`：`netease_session.json` 的读写与会话恢复。
+
+- **关键实现点**
+  - **代理隔离**：调用 pyncm 前临时清空系统代理变量，规避本地代理异常导致的连接失败。
+  - **版本兼容**：二维码登录相关 API 采用候选函数名逐一尝试，兼容不同 pyncm 版本命名差异。
+  - **播放兜底**：`/song/url` 同时返回 `originUrl/proxyUrl`，Qt 可在部分环境 403 场景回退直连。
+  - **Seek 友好流式传输**：`/song/stream` 透传 `Range`，支持播放器分片拉流与拖动进度。
+  - **统一响应模型**：通过 `ResponseFactory` 保持 `code/message/data` 结构一致，降低 Qt 端解析复杂度。
+
+- **本地持久化与运行约束**
+  - 会话文件：`python/server/netease_session.json`
+  - 默认监听：`127.0.0.1:8000`
+  - 建议：固定工作目录启动后端，避免会话文件路径变化导致“已登录状态丢失”。
 
 ---
 
@@ -141,6 +271,7 @@ flowchart TD
   - 创建并摆放 `MusicPlaylist`。
   - 连接 UI 与 `PlayerController` 的信号槽（按钮、进度条、歌词等）。
   - 处理元数据更新、歌词显示、窗口大小变化等。
+  - 处理云端搜索、云歌曲解析、封面拉取、云歌词缓存、网易云二维码登录流程。
   - **关键点**：
     - 根据 `playlistAvailabilityChanged` 统一控制“空列表占位”和播放控件可用性。
     - `eventFilter` 内集中处理：进度条拖动 seek、歌词滚轮暂停自动跟随、窗口拖拽与边缘缩放。
@@ -193,7 +324,19 @@ flowchart TD
   播放列表与元数据持久化：
   - `playlist.json`：记录曲目 URL 与元数据是否已缓存。
   - `Metadata/`：缓存封面 PNG（文件名为对 URL 做 percent-encoding 的 key）。
-  - **关键点**：`saveAtomic()` 使用安全写入（避免中途崩溃导致 JSON 损坏）；`markMetadata()` 在解析完成后写入封面并更新 title/artist。
+  - **关键点**：`saveAtomic()` 使用安全写入（避免中途崩溃导致 JSON 损坏）；`markMetadata()` 在解析完成后写入封面并更新 title/artist；支持云歌曲 `cloudSongId` 记录。
+
+- `cloudmusicservice.h / cloudmusicservice.cpp`  
+  云服务客户端（Qt 侧）：
+  - 调用本地 Python API 完成搜索、播放链接解析、歌词获取。
+  - 处理网易云登录、退出、二维码登录全流程接口。
+  - **关键点**：统一网络/JSON 错误处理，播放链接请求失败时向 UI 发送结构化错误信号。
+
+- `python/server/main.py`  
+  本地云服务（FastAPI）：
+  - 对接 pyncm 与网易云 API，提供 `/search`、`/song/url`、`/song/stream`、`/lyrics`、`/auth/login`、`/auth/qr/*` 等接口。
+  - 维护本地会话 `netease_session.json`，支持重启后恢复登录态。
+  - **关键点**：对代理环境做隔离处理，兼容不同 pyncm 版本的二维码登录 API 命名。
 
 - `moremenu.h / moremenu.cpp / moremenu.ui`  
   更多菜单：
@@ -203,15 +346,17 @@ flowchart TD
   Qt 资源文件，包含图标、背景图片等（如播放按钮图标、默认封面图片等）。
 
 - `CMakeLists.txt`  
-  CMake 构建配置，启用了 `AUTOUIC/AUTOMOC/AUTORCC`，并链接 `Qt6::Widgets` 和 `Qt6::Multimedia`。
+  CMake 构建配置，启用了 `AUTOUIC/AUTOMOC/AUTORCC`，并链接 `Qt6::Widgets`、`Qt6::Multimedia`、`Qt6::Network`。
 
 ---
 
 ## 环境与依赖
 
-- **Qt 版本**：Qt 6.8.3（Qt Widgets / Qt Multimedia）
+- **Qt 版本**：Qt 6.8.3（Qt Widgets / Qt Multimedia / Qt Network）
 - **构建系统**：CMake（最低 3.16；可搭配 Ninja 或 Visual Studio 生成器）
 - **编译器**：任意支持 C++17 的编译器（例如 MSVC / Clang / GCC / MinGW）
+- **Python（云功能必需）**：Python 3.9+，建议虚拟环境
+- **Python 依赖（云功能）**：`fastapi`、`uvicorn`、`pyncm`（见 `python/server/requirements.txt`）
 
 > 上述更完整的模块与持久化说明见上方「技术栈」小节。
 
@@ -219,7 +364,20 @@ flowchart TD
 
 ## 编译与运行
 
-1. **准备音乐文件**
+1. **（可选）启动本地云服务（用于云搜索/网易云登录）**
+
+   ```bash
+   cd python/server
+   pip install -r requirements.txt
+   python main.py
+   # 或
+   uvicorn main:app --host 127.0.0.1 --port 8000
+   ```
+
+   - 默认监听 `127.0.0.1:8000`，Qt 客户端通过该地址访问云接口。
+   - 不启服务时，本地音乐播放仍可用，但云搜索/云播放/网易云登录不可用。
+
+2. **准备音乐文件（本地播放）**
 
    - 在构建生成的可执行文件同级目录下创建 `MusicList` 文件夹，例如：
      - Windows：`<build-dir>\MusicPlayer.exe` 旁边创建 `MusicList\`
@@ -227,7 +385,7 @@ flowchart TD
    - 如需歌词，在同一目录下放置同名 `.lrc` 文件，例如：
      - `song.mp3` 对应 `song.lrc`
 
-2. **使用 CMake 构建**
+3. **使用 CMake 构建 Qt 客户端**
 
    ```bash
    # 在项目根目录（包含 CMakeLists.txt）下

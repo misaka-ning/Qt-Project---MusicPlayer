@@ -1,4 +1,5 @@
 #include "cloudmusicservice.h"
+#include "utils/ErrorHandlingUtils.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -23,6 +24,7 @@ void CloudMusicService::setBaseUrl(const QUrl& baseUrl)
 
 QUrl CloudMusicService::endpoint(const QString& path) const
 {
+    // 在 baseUrl 后安全追加相对路径，避免 query 串扰到下一次请求。
     QUrl u = m_baseUrl;
     QString p = u.path();
     if (!p.endsWith('/')) p += '/';
@@ -34,19 +36,15 @@ QUrl CloudMusicService::endpoint(const QString& path) const
 
 void CloudMusicService::handleHttpFailure(QNetworkReply *reply, quint64 requestId)
 {
-    if (!reply) return;
-    const auto statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    if (reply->error() != QNetworkReply::NoError) {
-        emit requestFailed(requestId, NetworkError, reply->errorString());
-        return;
-    }
-    if (statusCode >= 400) {
-        emit requestFailed(requestId, HttpError, QStringLiteral("HTTP %1").arg(statusCode));
+    QString errorMessage;
+    if (ErrorHandlingUtils::hasNetworkOrHttpError(reply, errorMessage)) {
+        emit requestFailed(requestId, NetworkError, errorMessage);
     }
 }
 
 void CloudMusicService::searchSongs(const QString& keyword, int page, int pageSize, quint64 requestId)
 {
+    // 空关键词直接返回空结果，避免无效请求。
     if (keyword.trimmed().isEmpty()) {
         emit searchFinished(requestId, {});
         return;
@@ -62,19 +60,19 @@ void CloudMusicService::searchSongs(const QString& keyword, int page, int pageSi
     QNetworkReply *reply = m_nam->get(QNetworkRequest(url));
     connect(reply, &QNetworkReply::finished, this, [this, reply, requestId]() {
         reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit requestFailed(requestId, NetworkError, reply->errorString());
+        QString errorMessage;
+        if (ErrorHandlingUtils::hasNetworkOrHttpError(reply, errorMessage)) {
+            emit requestFailed(requestId, NetworkError, errorMessage);
             return;
         }
 
-        QJsonParseError parseErr{};
-        const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll(), &parseErr);
-        if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
+        QJsonObject obj;
+        if (!ErrorHandlingUtils::parseJsonObject(reply, obj, errorMessage)) {
             emit requestFailed(requestId, ParseError, QStringLiteral("搜索结果解析失败"));
             return;
         }
-        const QJsonObject obj = doc.object();
 
+        // 兼容不同后端返回结构：songs/data/result.songs。
         QJsonArray arr;
         if (obj.value(QStringLiteral("songs")).isArray()) {
             arr = obj.value(QStringLiteral("songs")).toArray();
@@ -86,21 +84,22 @@ void CloudMusicService::searchSongs(const QString& keyword, int page, int pageSi
             arr = obj.value(QStringLiteral("result")).toObject().value(QStringLiteral("songs")).toArray();
         }
 
+        // 抽取列表展示所需字段，并做字段名兼容。
         QVector<CloudSongBrief> out;
         out.reserve(arr.size());
         for (const auto& v : arr) {
             if (!v.isObject()) continue;
             const QJsonObject s = v.toObject();
-            CloudSongBrief it;
-            it.songId = s.value(QStringLiteral("id")).toVariant().toString();
-            if (it.songId.isEmpty()) it.songId = s.value(QStringLiteral("songId")).toVariant().toString();
-            it.name = s.value(QStringLiteral("name")).toString();
-            if (it.name.isEmpty()) it.name = s.value(QStringLiteral("title")).toString();
-            it.artist = s.value(QStringLiteral("artist")).toString();
-            if (it.artist.isEmpty()) {
+            CloudSongBrief songBrief;
+            songBrief.songId = s.value(QStringLiteral("id")).toVariant().toString();
+            if (songBrief.songId.isEmpty()) songBrief.songId = s.value(QStringLiteral("songId")).toVariant().toString();
+            songBrief.name = s.value(QStringLiteral("name")).toString();
+            if (songBrief.name.isEmpty()) songBrief.name = s.value(QStringLiteral("title")).toString();
+            songBrief.artist = s.value(QStringLiteral("artist")).toString();
+            if (songBrief.artist.isEmpty()) {
                 const auto artistsValue = s.value(QStringLiteral("artists"));
                 if (artistsValue.isString()) {
-                    it.artist = artistsValue.toString();
+                    songBrief.artist = artistsValue.toString();
                 } else if (artistsValue.isArray()) {
                     QStringList artistNames;
                     const QJsonArray artistsArray = artistsValue.toArray();
@@ -109,16 +108,16 @@ void CloudMusicService::searchSongs(const QString& keyword, int page, int pageSi
                         const QString name = artistVal.toObject().value(QStringLiteral("name")).toString();
                         if (!name.isEmpty()) artistNames.push_back(name);
                     }
-                    it.artist = artistNames.join('/');
+                    songBrief.artist = artistNames.join('/');
                 }
             }
-            it.coverUrl = QUrl(s.value(QStringLiteral("coverUrl")).toString());
-            if (!it.coverUrl.isValid() || it.coverUrl.isEmpty()) {
-                it.coverUrl = QUrl(s.value(QStringLiteral("cover")).toString());
+            songBrief.coverUrl = QUrl(s.value(QStringLiteral("coverUrl")).toString());
+            if (!songBrief.coverUrl.isValid() || songBrief.coverUrl.isEmpty()) {
+                songBrief.coverUrl = QUrl(s.value(QStringLiteral("cover")).toString());
             }
-            it.fee = s.value(QStringLiteral("fee")).toInt(0);
-            it.st = s.value(QStringLiteral("st")).toInt(0);
-            if (!it.songId.isEmpty()) out.push_back(it);
+            songBrief.fee = s.value(QStringLiteral("fee")).toInt(0);
+            songBrief.st = s.value(QStringLiteral("st")).toInt(0);
+            if (!songBrief.songId.isEmpty()) out.push_back(songBrief);
         }
         emit searchFinished(requestId, out);
     });
@@ -139,25 +138,24 @@ void CloudMusicService::fetchPlayableUrl(const QString& songId, quint64 requestI
     QNetworkReply *reply = m_nam->get(QNetworkRequest(url));
     connect(reply, &QNetworkReply::finished, this, [this, reply, requestId, songId]() {
         reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit requestFailed(requestId, NetworkError, reply->errorString());
+        QString errorMessage;
+        if (ErrorHandlingUtils::hasNetworkOrHttpError(reply, errorMessage)) {
+            emit requestFailed(requestId, NetworkError, errorMessage);
             return;
         }
 
-        QJsonParseError parseErr{};
-        const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll(), &parseErr);
-        if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
+        QJsonObject obj;
+        if (!ErrorHandlingUtils::parseJsonObject(reply, obj, errorMessage)) {
             emit requestFailed(requestId, ParseError, QStringLiteral("播放地址解析失败"));
             return;
         }
-        const QJsonObject obj = doc.object();
-        const int apiCode = obj.value(QStringLiteral("code")).toInt(-1);
+        const int apiCode = ErrorHandlingUtils::extractApiCode(obj);
         if (apiCode != 0 && apiCode != 200) {
-            const QString msg = obj.value(QStringLiteral("message")).toString();
-            emit requestFailed(requestId, ApiError, msg.isEmpty() ? QStringLiteral("云端返回错误") : msg);
+            emit requestFailed(requestId, ApiError, ErrorHandlingUtils::extractApiMessage(obj, QStringLiteral("云端返回错误")));
             return;
         }
 
+        // 部分接口直接返回对象，部分包裹在 data 字段下。
         const QJsonObject data = obj.value(QStringLiteral("data")).isObject()
                                      ? obj.value(QStringLiteral("data")).toObject()
                                      : obj;
@@ -181,6 +179,7 @@ void CloudMusicService::fetchPlayableUrl(const QString& songId, quint64 requestI
             return;
         }
 
+        // 标题字段兼容 title/name。
         const QString title = data.value(QStringLiteral("title")).toString().isEmpty()
                                   ? data.value(QStringLiteral("name")).toString()
                                   : data.value(QStringLiteral("title")).toString();
@@ -216,6 +215,7 @@ void CloudMusicService::fetchLyrics(const QString& songId, quint64 requestId)
         QJsonParseError parseErr{};
         const QByteArray data = reply->readAll();
         const QJsonDocument doc = QJsonDocument::fromJson(data, &parseErr);
+        // 优先按 JSON 结构提取 lyrics；失败则回退为纯文本歌词。
         if (parseErr.error == QJsonParseError::NoError && doc.isObject()) {
             const QJsonObject obj = doc.object();
             const QString lrc = obj.value(QStringLiteral("lyrics")).toString();
@@ -258,29 +258,28 @@ void CloudMusicService::loginNeteasePhone(const QString& phone, const QString& p
     QNetworkReply *reply = m_nam->post(req, QJsonDocument(root).toJson(QJsonDocument::Compact));
     connect(reply, &QNetworkReply::finished, this, [this, reply, requestId]() {
         reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit neteaseLoginFinished(requestId, false, reply->errorString(), QString());
+        QString errorMessage;
+        if (ErrorHandlingUtils::hasNetworkOrHttpError(reply, errorMessage)) {
+            emit neteaseLoginFinished(requestId, false, errorMessage, QString());
             return;
         }
 
-        QJsonParseError parseErr{};
-        const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll(), &parseErr);
-        if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
+        QJsonObject obj;
+        if (!ErrorHandlingUtils::parseJsonObject(reply, obj, errorMessage)) {
             emit neteaseLoginFinished(requestId, false, QStringLiteral("登录响应解析失败"), QString());
             return;
         }
-        const QJsonObject obj = doc.object();
-        const int apiCode = obj.value(QStringLiteral("code")).toInt(-1);
-        const QString msg = obj.value(QStringLiteral("message")).toString();
+        const int apiCode = ErrorHandlingUtils::extractApiCode(obj);
         QString nickname;
         const QJsonValue dataVal = obj.value(QStringLiteral("data"));
         if (dataVal.isObject()) {
             nickname = dataVal.toObject().value(QStringLiteral("nickname")).toString();
         }
+        // 约定 code=0 表示登录成功。
         if (apiCode == 0) {
             emit neteaseLoginFinished(requestId, true, QString(), nickname);
         } else {
-            emit neteaseLoginFinished(requestId, false, msg.isEmpty() ? QStringLiteral("登录失败") : msg, QString());
+            emit neteaseLoginFinished(requestId, false, ErrorHandlingUtils::extractApiMessage(obj, QStringLiteral("登录失败")), QString());
         }
     });
 }
@@ -401,6 +400,7 @@ void CloudMusicService::checkNeteaseQrStatus(const QString& unikey, quint64 requ
         const QString nickname = data.value(QStringLiteral("nickname")).toString();
         const QString statusMessage = data.value(QStringLiteral("statusMessage")).toString();
 
+        // 后端查询成功，具体扫码状态由 status/statusCode 继续区分。
         emit neteaseQrStatus(requestId, true,
                              statusMessage.isEmpty() ? QStringLiteral("ok") : statusMessage,
                              keyOut, status, statusCode, loggedIn, nickname);

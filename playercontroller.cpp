@@ -1,4 +1,5 @@
 #include "playercontroller.h"
+#include "config/AppConstants.h"
 
 #include <QCoreApplication>
 #include <QFileInfo>
@@ -45,7 +46,7 @@ PlayerController::PlayerController(QObject *parent)
         if (state != QMediaPlayer::PlayingState) return;
 
         const int token = ++m_playToken;
-        QTimer::singleShot(200, this, [this, token]() {
+        QTimer::singleShot(AppConstants::Playback::PlaybackStallProbeDelayMs, this, [this, token]() {
             if (token != m_playToken) return; // 已经切换了歌曲/状态，丢弃
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             if (m_player->playbackState() != QMediaPlayer::PlayingState) return;
@@ -61,7 +62,7 @@ PlayerController::PlayerController(QObject *parent)
 
             // 如果已经开始前进就不处理；否则轻微 seek 1ms 触发解码/时钟启动
             if (m_player->position() == 0 && m_player->duration() > 0) {
-                m_player->setPosition(1);
+                m_player->setPosition(AppConstants::Playback::PositionWakeupMs);
             }
         });
     });
@@ -76,7 +77,7 @@ PlayerController::PlayerController(QObject *parent)
 void PlayerController::InitPool()
 {
     // 创建对象池（最大并发数设为4）
-    m_pool = new MediaPlayerPool(4, this);
+    m_pool = new MediaPlayerPool(AppConstants::Playback::MetadataPoolMaxConcurrency, this);
 
     // 连接任务完成信号：更新播放列表对应项
     connect(m_pool, &MediaPlayerPool::taskFinished, this, [this](int taskId, const QPixmap &cover, const QString &title, const QString &artist) {
@@ -213,7 +214,7 @@ void PlayerController::InitPlayList(MusicPlaylist *playlist)
     if (!m_musicplaylist->isempty()) {
         ensureValidPlayIndex();
         m_player->setSource(m_musicplaylist->Geturl(m_playnum));
-        m_audioOutput->setVolume(1);
+        m_audioOutput->setVolume(AppConstants::Playback::DefaultVolume);
     }
 
     emit playlistAvailabilityChanged(!m_musicplaylist->isempty());
@@ -389,7 +390,7 @@ void PlayerController::AddLocalFiles(const QStringList& filePaths)
     if (wasEmpty && !m_musicplaylist->isempty()) {
         ensureValidPlayIndex();
         m_player->setSource(m_musicplaylist->Geturl(m_playnum));
-        m_audioOutput->setVolume(1);
+        m_audioOutput->setVolume(AppConstants::Playback::DefaultVolume);
         emit playlistAvailabilityChanged(true);
     }
 
@@ -463,7 +464,7 @@ void PlayerController::PlaySong()
 
     if (m_autoplay)
     {
-        QTimer::singleShot(500, this, [this]() {
+        QTimer::singleShot(AppConstants::Playback::MetadataSaveDelayMs, this, [this]() {
             m_autoplay = false;
             m_player->play();
         });
@@ -495,7 +496,7 @@ void PlayerController::PlayPrevSong()
     // 单曲循环不需要换源文件
     if(m_nextmode == Repeat_Play)
     {
-        m_player->setPosition(1);
+        m_player->setPosition(AppConstants::Playback::PositionWakeupMs);
         m_player->play();
         return;
     }
@@ -544,7 +545,7 @@ void PlayerController::PlayNextSong()
     // 单曲循环不需要换源文件
     if(m_nextmode == Repeat_Play)
     {
-        m_player->setPosition(1);
+        m_player->setPosition(AppConstants::Playback::PositionWakeupMs);
         m_player->play();
         return;
     }

@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QHash>
 #include <QNetworkAccessManager>
+#include "config/AppConstants.h"
 #include "musicplaylist.h"
 #include "playercontroller.h"
 #include "lrcparser.h"
@@ -107,7 +108,7 @@ private:
     void fetchCloudCoverArt(const QUrl& coverUrl, int playlistIndex,
                             const QString& title, const QString& artist);
     void startNeteaseQrLogin();
-    void scheduleNeteaseQrPoll(int delayMs = 1800);
+    void scheduleNeteaseQrPoll(int delayMs = AppConstants::Network::QrPollDelayMs);
     void showNeteaseLoginErrorWithRetry(const QString &message);
     void showNeteaseQrDialog(const QUrl &qrDataUrl);
     void closeNeteaseQrDialog();
@@ -116,6 +117,10 @@ private:
     QString cloudLyricsStubMusicPath(const QString &songId) const;
     bool saveCloudLyricsToLocal(const QString &songId, const QString &lrcText);
     bool loadCloudLyricsFromLocal(const QString &songId);
+    bool handlePlaylistAutoHideEvent(QEvent *event);
+    bool handleSliderEvent(QObject *obj, QEvent *event);
+    bool handleLyricsWheelEvent(QObject *obj, QEvent *event);
+    bool handleWindowDragResizeEvent(QObject *obj, QEvent *event);
 
 private slots:
     void StatusChanged(QMediaPlayer::MediaStatus status); // 媒体状态变化：Loaded/Buffered 时应用 pendingSeek，EndOfMedia 时自动下一首

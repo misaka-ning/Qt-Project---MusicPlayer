@@ -14,6 +14,7 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Multimedia Network)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Multimedia Network)
 
 # 将所有源文件列出
+# Core application sources (startup + main window)
 set(PROJECT_SOURCES
     main.cpp
     mainwindow.cpp
@@ -23,6 +24,7 @@ set(PROJECT_SOURCES
     marqueelabel.cpp
 )
 
+# Target creation (Qt6/Qt5 compatible path)
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(MusicPlayer
         MANUAL_FINALIZATION
@@ -37,6 +39,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         playliststore.h playliststore.cpp
         cloudmusicservice.h cloudmusicservice.cpp
         cloudsearchwindow.h cloudsearchwindow.cpp
+        config/AppConstants.h
+        utils/ErrorHandlingUtils.h utils/ErrorHandlingUtils.cpp
     )
 else()
     if(ANDROID)
@@ -47,6 +51,7 @@ else()
 endif()
 
 # 链接 Qt 库
+# Qt module links used by runtime features
 target_link_libraries(MusicPlayer PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Multimedia

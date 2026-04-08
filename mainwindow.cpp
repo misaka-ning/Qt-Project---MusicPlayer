@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
+#include "config/AppConstants.h"
 
 #include <QMediaMetaData>
 #include <QDir>
@@ -74,7 +75,7 @@ void MainWindow::loadStyleSheet()
 void MainWindow::InitWindow()
 {
     setWindowTitle("MusicPlayer");
-    this->resize(1235, 833);
+    this->resize(AppConstants::Ui::MainWindowWidth, AppConstants::Ui::MainWindowHeight);
 
     setWindowFlags(Qt::FramelessWindowHint);
     setAutoFillBackground(false);
@@ -82,7 +83,7 @@ void MainWindow::InitWindow()
     // 加载样式表
     loadStyleSheet();
 
-    ui->imagelabel->setFixedSize(300, 300);
+    ui->imagelabel->setFixedSize(AppConstants::Ui::CoverSize, AppConstants::Ui::CoverSize);
     ui->imagelabel->setScaledContents(true);
 
     // 空列表占位 overlay（不拦截鼠标事件，避免挡住按钮）
@@ -119,6 +120,7 @@ void MainWindow::InitWindow()
     m_resizeEdge = NoEdge;
 
     ui->Slider->installEventFilter(this);
+    ui->Slider->setCursor(Qt::PointingHandCursor);
     this->installEventFilter(this);
     if (qApp) {
         qApp->installEventFilter(this);
@@ -212,12 +214,12 @@ void MainWindow::showNeteaseQrDialog(const QUrl &qrDataUrl)
         tipLabel->setAlignment(Qt::AlignCenter);
         m_neteaseQrImageLabel = new QLabel(QStringLiteral("正在加载二维码..."), m_neteaseQrDialog);
         m_neteaseQrImageLabel->setAlignment(Qt::AlignCenter);
-        m_neteaseQrImageLabel->setFixedSize(320, 320);
+        m_neteaseQrImageLabel->setFixedSize(AppConstants::Ui::NeteaseQrImageSize, AppConstants::Ui::NeteaseQrImageSize);
         m_neteaseQrImageLabel->setStyleSheet(QStringLiteral("QLabel{background:#111;color:#ddd;border:1px solid #333;border-radius:8px;}"));
         layout->addWidget(tipLabel);
         layout->addWidget(m_neteaseQrImageLabel, 0, Qt::AlignCenter);
         m_neteaseQrDialog->setLayout(layout);
-        m_neteaseQrDialog->setFixedSize(380, 420);
+        m_neteaseQrDialog->setFixedSize(AppConstants::Ui::NeteaseQrDialogWidth, AppConstants::Ui::NeteaseQrDialogHeight);
     }
 
     if (m_neteaseQrImageLabel) {
@@ -405,7 +407,7 @@ void MainWindow::InitButtons()
 /** @brief 设置按钮固定 30x30 及图标与图标尺寸。 */
 void MainWindow::InitButtonIcon(QPushButton *button, const QString & path)
 {
-    button->setFixedSize(30, 30);
+    button->setFixedSize(AppConstants::Ui::MoreMenuButtonSize, AppConstants::Ui::MoreMenuButtonSize);
     button->setIcon(QIcon(path));
     button->setIconSize(QSize(button->width(), button->height()));
 }
@@ -656,7 +658,16 @@ void MainWindow::fetchCloudCoverArt(const QUrl& coverUrl, int playlistIndex,
                                    const QString& title, const QString& artist)
 {
     if (!m_coverNam || !coverUrl.isValid() || coverUrl.isEmpty() || playlistIndex < 0) return;
-    QNetworkRequest req(coverUrl);
+    QUrl requestUrl = coverUrl;
+    if (m_cloudService) {
+        QUrl proxyBase(QStringLiteral("http://127.0.0.1:8000/cover/fetch"));
+        QUrlQuery query;
+        query.addQueryItem(QStringLiteral("url"), coverUrl.toString());
+        proxyBase.setQuery(query);
+        requestUrl = proxyBase;
+    }
+
+    QNetworkRequest req(requestUrl);
     req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"));
     req.setRawHeader("Referer", "https://music.163.com/");
@@ -846,7 +857,7 @@ void MainWindow::onLyricsListWidgetClicked(QModelIndex index)
             
             // 主动 seek 之后，短时间内忽略播放器发来的 positionChanged，避免旧位置把滑块“拉回去”
             m_ignoreSliderUpdate = true;
-            QTimer::singleShot(150, this, [this]() {
+            QTimer::singleShot(AppConstants::Ui::SliderUnfreezeDelayMs, this, [this]() {
                 m_ignoreSliderUpdate = false;
             });
         }
@@ -876,7 +887,7 @@ void MainWindow::applyPendingSeek()
     if (m_pendingSeek < 0 || !m_playerController) return;
     m_playerController->GetPlayer()->setPosition(m_pendingSeek);
     m_ignoreSliderUpdate = true;
-    QTimer::singleShot(150, this, [this]() { m_ignoreSliderUpdate = false; });
+    QTimer::singleShot(AppConstants::Ui::SliderUnfreezeDelayMs, this, [this]() { m_ignoreSliderUpdate = false; });
     m_pendingSeek = -1;
 }
 
@@ -1017,137 +1028,137 @@ void MainWindow::resizeEvent(QResizeEvent *event)
 /** @brief 事件过滤：播放列表外点击隐藏、进度条按下/释放 seek、歌词滚轮、窗口拖拽与边缘缩放。 */
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
-    // 播放列表弹出后：点击主窗口其它区域自动隐藏
-    if (event->type() == QEvent::MouseButtonPress && m_musicplaylist && m_musicplaylist->isVisible()) {
-        QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-        if (mouseEvent->button() == Qt::LeftButton) {
-            const QPoint globalPos = mouseEvent->globalPosition().toPoint();
-
-            const QRect playlistGlobalRect(
-                m_musicplaylist->mapToGlobal(QPoint(0, 0)),
-                m_musicplaylist->size()
-            );
-
-            // 点击在播放列表内部：不隐藏
-            if (playlistGlobalRect.contains(globalPos)) {
-                return QMainWindow::eventFilter(obj, event);
-            }
-
-            // 点击在 listButton：交给按钮的 togglePlaylist 逻辑处理
-            if (ui && ui->listButton) {
-                const QRect listBtnGlobalRect(
-                    ui->listButton->mapToGlobal(QPoint(0, 0)),
-                    ui->listButton->size()
-                );
-                if (listBtnGlobalRect.contains(globalPos)) {
-                    return QMainWindow::eventFilter(obj, event);
-                }
-            }
-
-            // 其它任意位置：隐藏播放列表（带动画）
-            hidePlaylistIfVisible();
-        }
-    }
-
-    if (obj == ui->Slider) {
-        // 鼠标按下：开始一次拖动/点选，不立刻改变播放进度
-        if (event->type() == QEvent::MouseButtonPress)
-            m_sliderPressed = true;
-        if (event->type() == QEvent::MouseButtonRelease && m_sliderPressed) {
-            QSlider *slider = ui->Slider;
-
-            m_sliderPressed = false;
-
-            int value = slider->value(); // 使用当前滑块位置，不再手动计算
-
-            if (m_playerController) {
-                QMediaPlayer *player = m_playerController->GetPlayer();
-                QMediaPlayer::MediaStatus status = player->mediaStatus();
-
-                // 如果媒体还在加载中，先记录一个待应用的进度，等 LoadedMedia/BufferedMedia 再真正 seek
-                if (status == QMediaPlayer::LoadingMedia ||
-                    status == QMediaPlayer::NoMedia)
-                {
-                    m_pendingSeek = static_cast<qint64>(value);
-                }
-                else
-                {
-                    player->setPosition(static_cast<qint64>(value));
-
-                    // 主动 seek 之后，短时间内忽略播放器发来的 positionChanged，避免旧位置把滑块“拉回去”
-                    m_ignoreSliderUpdate = true;
-                    QTimer::singleShot(150, this, [this]() {
-                        m_ignoreSliderUpdate = false;
-                    });
-                }
-            }
-
-            // 如果释放位置在末尾，视为用户主动把歌拖到末尾，此时再切到下一首
-            if (value >= slider->maximum())
-                MusicEnd();
-        }
-    }
-
-    if ((obj == ui->lyricsListWidget || obj == ui->lyricsListWidget->viewport())
-        && event->type() == QEvent::Wheel) {
-        m_manualScroll = true;
-        m_wheelTimer->start();
-        return false;   // 允许事件继续传递给 QListWidget，使其能够滚动
-    }
-
-    // 处理窗口拖动和调整大小
-    if (obj == this) {
-        if (event->type() == QEvent::MouseButtonPress) {
-            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-            if (mouseEvent->button() == Qt::LeftButton) {
-                // 首先检查是否在调整大小区域
-                Edge edge = getEdge(mouseEvent->pos());
-                if (edge != NoEdge && mouseEvent->pos().y() >= 50) {
-                    // 在非标题栏区域检测到边缘，开始调整大小
-                    startResize(edge, mouseEvent->pos());
-                    return true;
-                }
-                
-                // 检查鼠标是否在窗口顶部区域（用于拖动）
-                if (mouseEvent->pos().y() < 50) {
-                    m_isDragging = true;
-                    m_dragStartPos = mouseEvent->globalPosition() - this->frameGeometry().topLeft();
-                }
-            }
-        } else if (event->type() == QEvent::MouseMove) {
-            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-            
-            // 如果正在调整大小
-            if (m_isResizing) {
-                performResize(mouseEvent->pos());
-                return true;
-            }
-            
-            // 如果正在拖动窗口
-            if (m_isDragging) {
-                QPointF newPos = mouseEvent->globalPosition() - m_dragStartPos;
-                this->move(newPos.toPoint());
-                return true;
-            }
-            
-            // 如果没有按下鼠标按钮，更新光标形状
-            if (!(mouseEvent->buttons() & Qt::LeftButton)) {
-                Edge edge = getEdge(mouseEvent->pos());
-                updateCursor(edge);
-            }
-        } else if (event->type() == QEvent::MouseButtonRelease) {
-            // 停止拖动和调整大小
-            m_isDragging = false;
-            if (m_isResizing) {
-                m_isResizing = false;
-                m_resizeEdge = NoEdge;
-                this->unsetCursor();
-            }
-        }
-    }
+    handlePlaylistAutoHideEvent(event);
+    if (handleSliderEvent(obj, event)) return true;
+    if (handleLyricsWheelEvent(obj, event)) return false;
+    if (handleWindowDragResizeEvent(obj, event)) return true;
 
     // 其他事件交给父类处理
     return QMainWindow::eventFilter(obj, event);
+}
+
+bool MainWindow::handlePlaylistAutoHideEvent(QEvent *event)
+{
+    if (event->type() != QEvent::MouseButtonPress || !m_musicplaylist || !m_musicplaylist->isVisible()) return false;
+
+    auto *mouseEvent = static_cast<QMouseEvent*>(event);
+    if (mouseEvent->button() != Qt::LeftButton) return false;
+
+    const QPoint globalPos = mouseEvent->globalPosition().toPoint();
+    const QRect playlistGlobalRect(m_musicplaylist->mapToGlobal(QPoint(0, 0)), m_musicplaylist->size());
+    if (playlistGlobalRect.contains(globalPos)) return false;
+
+    if (ui && ui->listButton) {
+        const QRect listBtnGlobalRect(ui->listButton->mapToGlobal(QPoint(0, 0)), ui->listButton->size());
+        if (listBtnGlobalRect.contains(globalPos)) return false;
+    }
+
+    hidePlaylistIfVisible();
+    return false;
+}
+
+bool MainWindow::handleSliderEvent(QObject *obj, QEvent *event)
+{
+    if (!ui || obj != ui->Slider) return false;
+
+    if (event->type() == QEvent::MouseButtonPress) {
+        m_sliderPressed = true;
+        return false;
+    }
+    if (event->type() != QEvent::MouseButtonRelease || !m_sliderPressed) return false;
+
+    QSlider *slider = ui->Slider;
+    m_sliderPressed = false;
+    const int value = slider->value();
+
+    if (m_playerController) {
+        QMediaPlayer *player = m_playerController->GetPlayer();
+        const QMediaPlayer::MediaStatus status = player->mediaStatus();
+        if (status == QMediaPlayer::LoadingMedia || status == QMediaPlayer::NoMedia) {
+            m_pendingSeek = static_cast<qint64>(value);
+        } else {
+            player->setPosition(static_cast<qint64>(value));
+            m_ignoreSliderUpdate = true;
+            QTimer::singleShot(AppConstants::Ui::SliderUnfreezeDelayMs, this, [this]() {
+                m_ignoreSliderUpdate = false;
+            });
+        }
+    }
+
+    if (value >= slider->maximum()) MusicEnd();
+    return false;
+}
+
+bool MainWindow::handleLyricsWheelEvent(QObject *obj, QEvent *event)
+{
+    if (!ui) return false;
+    if ((obj != ui->lyricsListWidget && obj != ui->lyricsListWidget->viewport())
+        || event->type() != QEvent::Wheel) {
+        return false;
+    }
+    m_manualScroll = true;
+    m_wheelTimer->start();
+    return true;
+}
+
+bool MainWindow::handleWindowDragResizeEvent(QObject *obj, QEvent *event)
+{
+    auto *widget = qobject_cast<QWidget *>(obj);
+    if (!widget) return false;
+    if (widget != this && !this->isAncestorOf(widget)) return false;
+
+    QPoint localPos;
+    QPoint globalPos;
+    if (event->type() == QEvent::MouseButtonPress ||
+        event->type() == QEvent::MouseMove ||
+        event->type() == QEvent::MouseButtonRelease) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        globalPos = mouseEvent->globalPosition().toPoint();
+        localPos = this->mapFromGlobal(globalPos);
+    }
+
+    if (event->type() == QEvent::MouseButtonPress) {
+        auto *mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() != Qt::LeftButton) return false;
+
+        const Edge edge = getEdge(localPos);
+        if (edge != NoEdge && localPos.y() >= 50) {
+            startResize(edge, localPos);
+            return true;
+        }
+        if (widget == this && localPos.y() < 50) {
+            m_isDragging = true;
+            m_dragStartPos = mouseEvent->globalPosition() - this->frameGeometry().topLeft();
+        }
+        return false;
+    }
+
+    if (event->type() == QEvent::MouseMove) {
+        if (m_isResizing) {
+            performResize(localPos);
+            return true;
+        }
+        if (m_isDragging) {
+            const QPointF newPos = globalPos - m_dragStartPos;
+            this->move(newPos.toPoint());
+            return true;
+        }
+        auto *mouseEvent = static_cast<QMouseEvent*>(event);
+        if (!(mouseEvent->buttons() & Qt::LeftButton)) {
+            updateCursor(getEdge(localPos));
+        }
+        return false;
+    }
+
+    if (event->type() == QEvent::MouseButtonRelease) {
+        m_isDragging = false;
+        if (m_isResizing) {
+            m_isResizing = false;
+            m_resizeEdge = NoEdge;
+            this->unsetCursor();
+        }
+    }
+    return false;
 }
 
 /** @brief 根据鼠标在窗口内的位置返回可拖拽边缘（左/右/上/下及其组合）。 */
@@ -1264,7 +1275,7 @@ void MainWindow::moremenubuttonclick()
         }
         else
         {
-            int target_x = ui->moreButton->x() + ui->Controlwidget->x() + ui->toolWidget->x() - 30;
+            int target_x = ui->moreButton->x() + ui->Controlwidget->x() + ui->toolWidget->x() - 60;
             int target_y = ui->moreButton->y() + ui->Controlwidget->y() + ui->toolWidget->y() - 180;
             m_moremenuwindow->move(target_x, target_y);
             m_moremenuwindow->show();

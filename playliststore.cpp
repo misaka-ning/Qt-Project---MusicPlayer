@@ -39,6 +39,7 @@ bool PlaylistStore::ensureMetadataDir() const
 
 QString PlaylistStore::makeKeyFromUrlString(const QString& urlString)
 {
+    // 使用 URL 编码后的字符串作为稳定 key，避免路径特殊字符造成文件名问题。
     return QString::fromLatin1(QUrl::toPercentEncoding(urlString));
 }
 
@@ -106,6 +107,7 @@ bool PlaylistStore::load()
         root.insert(QStringLiteral("version"), kPlaylistVersion);
     }
 
+    // 兼容旧版本/异常数据：缺字段时使用默认值并尽量恢复可用条目。
     const QJsonArray tracks = root.value(QStringLiteral("tracks")).toArray();
     m_tracks.reserve(tracks.size());
     for (const QJsonValue& v : tracks) {
@@ -158,6 +160,7 @@ bool PlaylistStore::saveAtomic() const
     }
     root.insert(QStringLiteral("tracks"), tracks);
 
+    // QSaveFile 通过临时文件 + commit 保证写入原子性，避免写坏 playlist.json。
     QSaveFile f(playlistJsonAbsPath());
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
     const QJsonDocument doc(root);
@@ -173,7 +176,7 @@ int PlaylistStore::upsertTrack(const QString& urlString)
     int idx = findIndexByKey(key);
     if (idx >= 0) return idx;
 
-    // If key not found but url exists, reuse that entry.
+    // key 不存在但 url 已存在时复用旧条目，避免重复插入同一歌曲。
     idx = findIndexByUrl(urlString);
     if (idx >= 0) {
         if (m_tracks[idx].key.isEmpty()) m_tracks[idx].key = key;
@@ -195,37 +198,31 @@ bool PlaylistStore::markMetadata(const QString& urlString, const QPixmap& cover,
 {
     const int idx = upsertTrack(urlString);
     if (idx < 0) return false;
-
-    ensureMetadataDir();
-
     Track& t = m_tracks[idx];
     t.hasMetadata = true;
-    t.title = title;
-    t.artist = artist;
     if (t.key.isEmpty()) t.key = makeKeyFromUrlString(urlString);
-    t.coverPath = coverRelPathForKey(t.key);
-
-    const QPixmap finalCover = cover.isNull() ? QPixmap(QStringLiteral(":/res/misaka.png")) : cover;
-    finalCover.save(coverAbsPathForKey(t.key), "PNG");
-    return true;
+    return applyMetadataToTrack(t, cover, title, artist);
 }
 
 bool PlaylistStore::markMetadataByKey(const QString& key, const QPixmap& cover, const QString& title, const QString& artist)
 {
     const int idx = findIndexByKey(key);
     if (idx < 0) return false;
+    return applyMetadataToTrack(m_tracks[idx], cover, title, artist);
+}
 
-    ensureMetadataDir();
+bool PlaylistStore::applyMetadataToTrack(Track& track, const QPixmap& cover, const QString& title, const QString& artist)
+{
+    if (!ensureMetadataDir()) return false;
 
-    Track& t = m_tracks[idx];
-    t.hasMetadata = true;
-    t.title = title;
-    t.artist = artist;
-    t.coverPath = coverRelPathForKey(t.key);
+    track.hasMetadata = true;
+    track.title = title;
+    track.artist = artist;
+    track.coverPath = coverRelPathForKey(track.key);
 
+    // 无封面时回退到内置默认图，保证封面文件始终可加载。
     const QPixmap finalCover = cover.isNull() ? QPixmap(QStringLiteral(":/res/misaka.png")) : cover;
-    finalCover.save(coverAbsPathForKey(t.key), "PNG");
-    return true;
+    return finalCover.save(coverAbsPathForKey(track.key), "PNG");
 }
 
 int PlaylistStore::upsertCloudTrack(const QString& songId, const QString& playUrlString)
@@ -270,14 +267,14 @@ bool PlaylistStore::removeTrackByKey(const QString& key)
 
 QPixmap PlaylistStore::loadCoverForTrack(const Track& t) const
 {
-    // Prefer the explicit coverPath stored in json (relative path).
+    // 优先使用 json 中的显式 coverPath（相对应用目录）。
     if (!t.coverPath.isEmpty()) {
         const QString abs = QDir(m_appDir).filePath(t.coverPath);
         QPixmap pix;
         if (pix.load(abs)) return pix;
     }
 
-    // Fallback by key.
+    // 回退到 key 约定路径。
     if (!t.key.isEmpty()) {
         QPixmap pix;
         if (pix.load(coverAbsPathForKey(t.key))) return pix;
