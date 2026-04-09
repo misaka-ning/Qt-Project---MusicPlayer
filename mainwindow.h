@@ -124,7 +124,7 @@ private:
 
 private slots:
     void StatusChanged(QMediaPlayer::MediaStatus status); // 媒体状态变化：Loaded/Buffered 时应用 pendingSeek，EndOfMedia 时自动下一首
-    void StateChange(QMediaPlayer::PlaybackState state);  // 播放状态变化（预留）
+    void StateChange(QMediaPlayer::PlaybackState state);  // 播放状态变化：同步播放/暂停按钮图标
     void UpdateMetadata();                                // 从当前播放器读取元数据并更新封面/标题/艺术家/歌词
     void MusicEnd();                                      // 当前曲目结束，通知 PlayerController 切下一首
     void onAddMusicFromMoreMenu();                        // MoreMenu -> 添加音乐

@@ -709,8 +709,7 @@ void MainWindow::onCloudPlayUrlReady(quint64 requestId,
         // 已成功拿到新直链，允许后续在该歌曲再次出现错误时重试一次。
         m_lastCloudRetrySourceUrl.clear();
     }
-    const QPixmap cover(":/res/misaka.png");
-    const int idx = m_playerController->addOrUpdateCloudTrackAndPlay(songId, playUrl, title, artist, cover);
+    const int idx = m_playerController->addOrUpdateCloudTrackAndPlay(songId, playUrl, title, artist, QPixmap());
     if (idx >= 0) {
         statusBar()->showMessage(QStringLiteral("正在播放：%1 - %2").arg(artist, title), 3000);
     }
@@ -993,10 +992,14 @@ void MainWindow::UpdateMetadata()
     }
 }
 
-/** 播放状态变化（预留，可按需更新 UI）。 */
+/** @brief 播放状态变化：同步主界面播放按钮图标（网络/列表等路径不经过 playButton 点击，需依赖播放器状态）。 */
 void MainWindow::StateChange(QMediaPlayer::PlaybackState state)
 {
-    Q_UNUSED(state);
+    if (!ui || !ui->playButton || !ui->playButton->isEnabled()) return;
+    if (state == QMediaPlayer::PlayingState)
+        InitButtonIcon(ui->playButton, QStringLiteral(":/res/stop.png"));
+    else
+        InitButtonIcon(ui->playButton, QStringLiteral(":/res/play.png"));
 }
 
 /** @brief 当前曲目结束，通知 PlayerController 切下一首。 */

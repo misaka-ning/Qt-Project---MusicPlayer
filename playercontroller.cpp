@@ -243,11 +243,36 @@ int PlayerController::addOrUpdateCloudTrackAndPlay(const QString& songId, const 
     if (!m_musicplaylist || songId.trimmed().isEmpty() || !playUrl.isValid()) return -1;
 
     const QString sid = songId.trimmed();
-    const QString finalTitle = title.trimmed().isEmpty() ? QStringLiteral("未知曲目") : title.trimmed();
-    const QString finalArtist = artist.trimmed().isEmpty() ? QStringLiteral("未知艺术家") : artist.trimmed();
-    const QPixmap finalCover = cover.isNull() ? QPixmap(QStringLiteral(":/res/misaka.png")) : cover;
-
     int index = m_musicplaylist->findIndexByCloudSongId(sid);
+
+    QString finalTitle = title.trimmed();
+    QString finalArtist = artist.trimmed();
+    QPixmap finalCover = cover;
+
+    // 先复用当前列表已有封面与文案，避免切歌时闪回默认图。
+    if (index >= 0) {
+        if (finalCover.isNull()) finalCover = m_musicplaylist->coverPixmapAt(index);
+        if (finalTitle.isEmpty()) finalTitle = m_musicplaylist->songTitleAt(index).trimmed();
+        if (finalArtist.isEmpty()) finalArtist = m_musicplaylist->songArtistAt(index).trimmed();
+    }
+
+    m_store.load();
+    if (finalCover.isNull() || finalTitle.isEmpty() || finalArtist.isEmpty()) {
+        for (const auto& t : m_store.tracks()) {
+            if (t.cloudSongId != sid) continue;
+            if (finalCover.isNull() && t.hasMetadata) {
+                finalCover = m_store.loadCoverForTrack(t);
+            }
+            if (finalTitle.isEmpty()) finalTitle = t.title.trimmed();
+            if (finalArtist.isEmpty()) finalArtist = t.artist.trimmed();
+            break;
+        }
+    }
+
+    if (finalTitle.isEmpty()) finalTitle = QStringLiteral("未知曲目");
+    if (finalArtist.isEmpty()) finalArtist = QStringLiteral("未知艺术家");
+    if (finalCover.isNull()) finalCover = QPixmap(QStringLiteral(":/res/misaka.png"));
+
     if (index >= 0) {
         m_musicplaylist->setSongUrlAt(index, playUrl);
         m_musicplaylist->updateItem(index, finalCover, finalTitle, finalArtist);
@@ -255,7 +280,6 @@ int PlayerController::addOrUpdateCloudTrackAndPlay(const QString& songId, const 
         index = m_musicplaylist->appendSong(finalCover, playUrl, finalTitle, finalArtist, sid);
     }
 
-    m_store.load();
     const int storeIndex = m_store.upsertCloudTrack(sid, playUrl.toString());
     if (storeIndex >= 0) {
         const QString key = PlaylistStore::makeKeyForCloudSongId(sid);
@@ -451,12 +475,15 @@ void PlayerController::PlaySong()
     if (!m_musicplaylist || m_musicplaylist->isempty()) return;
     if (!ensureValidPlayIndex()) return;
 
+    const QString sid = m_musicplaylist->cloudSongIdAt(m_playnum).trimmed();
+    if (!sid.isEmpty()) {
+        // 云歌曲直链可能过期；每次播放前都向后端刷新 URL，避免重启后命中 403。
+        emit cloudTrackResolveRequested(sid);
+        return;
+    }
+
     const QUrl source = m_musicplaylist->Geturl(m_playnum);
     if (!source.isValid() || source.isEmpty()) {
-        const QString sid = m_musicplaylist->cloudSongIdAt(m_playnum);
-        if (!sid.isEmpty()) {
-            emit cloudTrackResolveRequested(sid);
-        }
         return;
     }
 

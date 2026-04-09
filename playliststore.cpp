@@ -13,6 +13,15 @@
 
 namespace {
 constexpr int kPlaylistVersion = 1;
+
+QString cloudSongIdFromLegacyKey(const QString& key)
+{
+    const QString prefix = QStringLiteral("cloud_");
+    if (!key.startsWith(prefix)) return {};
+    const QString encoded = key.mid(prefix.size());
+    if (encoded.isEmpty()) return {};
+    return QUrl::fromPercentEncoding(encoded.toLatin1());
+}
 } // namespace
 
 PlaylistStore::PlaylistStore()
@@ -122,6 +131,10 @@ bool PlaylistStore::load()
         t.artist = o.value(QStringLiteral("artist")).toString();
         t.coverPath = o.value(QStringLiteral("coverPath")).toString();
         t.cloudSongId = o.value(QStringLiteral("cloudSongId")).toString();
+        if (t.cloudSongId.isEmpty()) {
+            // 兼容旧数据：历史版本仅通过 key=cloud_<id> 区分云歌曲。
+            t.cloudSongId = cloudSongIdFromLegacyKey(t.key);
+        }
 
         if (t.url.isEmpty()) continue;
         if (!t.cloudSongId.isEmpty()) {
