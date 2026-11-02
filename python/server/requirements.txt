@@ -1,3 +1,4 @@
 fastapi>=0.115.0,<1
 uvicorn>=0.30.0,<1
-pyncm>=1.7.1,<2
+# PyPI currently has no pyncm distributions; pin the mirrored upstream wheel by hash.
+pyncm @ https://mirrors.cloud.tencent.com/pypi/packages/58/f4/05d7a0116bd70dcef0f7214c0e9ee6a50a124525eaefc5c2bb0c5085f0b7/pyncm-1.8.1-py3-none-any.whl#sha256=839f9f0e534d4892b7b9ad0378f13c4595f900653e11f00d758f1aed957c4374

@@ -356,7 +356,7 @@ flowchart TD
 - **构建系统**：CMake（最低 3.21.1；可搭配 Ninja 或 Visual Studio 生成器）
 - **编译器**：任意支持 C++17 的编译器（例如 MSVC / Clang / GCC / MinGW）
 - **Python（云功能必需）**：Python 3.9+，建议虚拟环境
-- **Python 依赖（云功能）**：`fastapi`、`uvicorn`、`pyncm`（见 `python/server/requirements.txt`）
+- **Python 依赖（云功能）**：`fastapi>=0.115`、`uvicorn>=0.30`、`pyncm==1.8.1`（见 `python/server/requirements.txt`）。当前 PyPI 无可下载的 pyncm 分发，依赖文件使用腾讯 PyPI 镜像保存的 1.8.1 wheel 并校验 SHA-256；安装需能访问该镜像。
 
 > 上述更完整的模块与持久化说明见上方「技术栈」小节。
 
