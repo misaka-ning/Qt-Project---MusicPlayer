@@ -1,4 +1,4 @@
-#include "lrcparser.h"
+#include "player/lrcparser.h"
 #include <QFile>
 #include <QRegularExpression>
 #include <QStringDecoder>

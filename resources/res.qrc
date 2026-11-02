@@ -1,0 +1,27 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="res/list play.png">images/list play.png</file>
+        <file alias="res/list.png">images/list.png</file>
+        <file alias="res/loop play.png">images/loop play.png</file>
+        <file alias="res/next song.png">images/next song.png</file>
+        <file alias="res/play order.png">images/play order.png</file>
+        <file alias="res/play.png">images/play.png</file>
+        <file alias="res/playlist.png">images/playlist.png</file>
+        <file alias="res/prev song.png">images/prev song.png</file>
+        <file alias="res/repeat play.png">images/repeat play.png</file>
+        <file alias="res/shuffle play.png">images/shuffle play.png</file>
+        <file alias="res/stop.png">images/stop.png</file>
+        <file alias="res/background.png">images/background.png</file>
+        <file alias="res/background_fade.png">images/background_fade.png</file>
+        <file alias="res/misaka.png">images/misaka.png</file>
+        <file alias="res/background_fade2.png">images/background_fade2.png</file>
+        <file alias="res/background_dark.png">images/background_dark.png</file>
+        <file alias="style.qss">style.qss</file>
+        <file alias="res/close.png">images/close.png</file>
+        <file alias="res/close_hover.png">images/close_hover.png</file>
+        <file alias="res/Maximize.png">images/Maximize.png</file>
+        <file alias="res/Minimize.png">images/Minimize.png</file>
+        <file alias="res/Windowed.png">images/Windowed.png</file>
+        <file alias="res/more.png">images/more.png</file>
+    </qresource>
+</RCC>

@@ -19,3 +19,20 @@ __pycache__/
 *.log
 netease_session.json
 .session-*
+
+# Local IDE and CMake state
+.vscode/
+.idea/
+.cache/
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+build-*/
+
+# Client runtime files (normally created beside the built executable)
+playlist.json
+Metadata/
+CloudLyrics/
+MusicList/

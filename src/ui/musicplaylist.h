@@ -7,7 +7,7 @@
 #include <QVBoxLayout>
 #include <QPoint>
 #include <QLabel>
-#include "songunit.h"
+#include "ui/songunit.h"
 
 namespace Ui {
 class MusicPlaylist;

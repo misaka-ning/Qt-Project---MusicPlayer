@@ -1,5 +1,5 @@
-#include "cloudmusicservice.h"
-#include "utils/ErrorHandlingUtils.h"
+#include "services/cloudmusicservice.h"
+#include "services/ErrorHandlingUtils.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>

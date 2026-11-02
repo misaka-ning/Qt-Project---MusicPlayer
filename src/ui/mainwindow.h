@@ -17,13 +17,13 @@
 #include <QLabel>
 #include <QHash>
 #include <QNetworkAccessManager>
-#include "config/AppConstants.h"
-#include "musicplaylist.h"
-#include "playercontroller.h"
-#include "lrcparser.h"
-#include "moremenu.h"
-#include "cloudmusicservice.h"
-#include "cloudsearchwindow.h"
+#include "app/AppConstants.h"
+#include "ui/musicplaylist.h"
+#include "player/playercontroller.h"
+#include "player/lrcparser.h"
+#include "ui/moremenu.h"
+#include "services/cloudmusicservice.h"
+#include "ui/cloudsearchwindow.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }

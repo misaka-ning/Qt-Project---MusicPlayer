@@ -506,7 +506,7 @@
   <customwidget>
    <class>MarqueeLabel</class>
    <extends>QLabel</extends>
-   <header>marqueelabel.h</header>
+   <header>ui/marqueelabel.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

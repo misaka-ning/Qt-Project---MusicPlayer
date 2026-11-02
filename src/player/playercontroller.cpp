@@ -1,5 +1,5 @@
-#include "playercontroller.h"
-#include "config/AppConstants.h"
+#include "player/playercontroller.h"
+#include "app/AppConstants.h"
 
 #include <QCoreApplication>
 #include <QFileInfo>

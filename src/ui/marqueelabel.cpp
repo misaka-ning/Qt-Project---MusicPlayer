@@ -1,4 +1,4 @@
-#include "marqueelabel.h"
+#include "ui/marqueelabel.h"
 
 #include <QTimerEvent>
 
