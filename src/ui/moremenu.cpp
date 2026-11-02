@@ -1,4 +1,4 @@
-#include "moremenu.h"
+#include "ui/moremenu.h"
 #include "ui_moremenu.h"
 
 MoreMenu::MoreMenu(QWidget *parent)

@@ -1,4 +1,4 @@
-#include "musicplaylist.h"
+#include "ui/musicplaylist.h"
 #include "ui_musicplaylist.h"
 
 #include <QGraphicsOpacityEffect>

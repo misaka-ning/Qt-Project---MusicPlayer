@@ -1,6 +1,6 @@
-#include "mainwindow.h"
-#include "./ui_mainwindow.h"
-#include "config/AppConstants.h"
+#include "ui/mainwindow.h"
+#include "ui_mainwindow.h"
+#include "app/AppConstants.h"
 
 #include <QMediaMetaData>
 #include <QDir>

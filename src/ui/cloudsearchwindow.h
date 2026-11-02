@@ -3,7 +3,7 @@
 #include <QDialog>
 #include <QVector>
 
-#include "cloudmusicservice.h"
+#include "services/cloudmusicservice.h"
 
 class QListWidget;
 class QLabel;

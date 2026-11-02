@@ -1,4 +1,4 @@
-#include "utils/ErrorHandlingUtils.h"
+#include "services/ErrorHandlingUtils.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>

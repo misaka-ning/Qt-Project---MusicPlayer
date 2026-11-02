@@ -1,4 +1,4 @@
-#include "cloudsearchwindow.h"
+#include "ui/cloudsearchwindow.h"
 
 #include <QListWidget>
 #include <QVBoxLayout>

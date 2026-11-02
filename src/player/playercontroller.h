@@ -8,9 +8,9 @@
 #include <QUrl>
 #include <QPixmap>
 #include <QStringList>
-#include "musicplaylist.h"
-#include "mediaplayerpool.h"
-#include "playliststore.h"
+#include "ui/musicplaylist.h"
+#include "player/mediaplayerpool.h"
+#include "services/playliststore.h"
 
 /** 播放模式：List_Play 列表循环，Loop_Play 随机，Repeat_Play 单曲循环 */
 enum nextmode {

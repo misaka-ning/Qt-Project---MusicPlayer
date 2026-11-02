@@ -1,4 +1,4 @@
-#include "playliststore.h"
+#include "services/playliststore.h"
 
 #include <QCoreApplication>
 #include <QDir>

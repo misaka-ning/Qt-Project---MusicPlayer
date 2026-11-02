@@ -8,32 +8,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Linux build dependencies
-        run: sudo apt-get update && sudo apt-get install -y ninja-build libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libpulse-dev
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libpulse-dev libegl1 libasound2t64
       - uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
           modules: 'qtmultimedia'
           cache: false
-      - name: Reproduce original case-sensitive source failure
-        shell: bash
-        run: |
-          baseline="$RUNNER_TEMP/musicplayer-baseline"
-          mkdir -p "$baseline"
-          git archive HEAD | tar -x -C "$baseline"
-          python - "$baseline/CMakeLists.txt" <<'PYCODE'
-          from pathlib import Path
-          import sys
-          path = Path(sys.argv[1])
-          path.write_text(path.read_text().replace("mediaplayerpool.h mediaplayerpool.cpp", "MediaPlayerPool.h mediaplayerpool.cpp"))
-          PYCODE
-          if cmake -S "$baseline" -B "$RUNNER_TEMP/baseline-build" -G Ninja -DCMAKE_BUILD_TYPE=Release > "$RUNNER_TEMP/baseline.log" 2>&1; then
-            echo "Expected original filename mismatch to fail"
-            exit 1
-          fi
-          cat "$RUNNER_TEMP/baseline.log"
-          grep -q 'MediaPlayerPool.h' "$RUNNER_TEMP/baseline.log"
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build --parallel 2
+      - run: ctest --test-dir build --output-on-failure
+      - name: Check source tree stayed clean
+        run: test -z "$(git status --porcelain --untracked-files=all)"
   backend:
     runs-on: ubuntu-24.04
     strategy:
