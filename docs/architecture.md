@@ -138,7 +138,7 @@ flowchart TD
     - `Qt Widgets`：窗口、控件、事件过滤、动画交互（播放列表滑入滑出、无边框拖拽缩放）
     - `Qt Multimedia`：`QMediaPlayer` + `QAudioOutput` 音频播放、媒体状态管理、元数据读取
     - `Qt Network`：云搜索、播放地址解析、歌词拉取、登录态请求、封面下载
-  - **UI 工程化**：`Qt Designer (.ui)` + `QSS(style.qss)` + `Qt Resource System(res.qrc)`
+  - **UI 工程化**：`Qt Designer (.ui)` + `QSS(resources/style.qss)` + `Qt Resource System(resources/res.qrc)`
   - **并发与异步模型**：基于 Qt 事件循环 + Signal/Slot，网络请求与元数据任务异步回调驱动
 
 - **后端（Local Cloud Gateway）**
@@ -236,14 +236,14 @@ flowchart TD
     - `Loop_Play` 下使用 Fisher–Yates 洗牌生成随机播放顺序（`UpdateRandomArray()`）。
     - 为避免个别音频 “play 后卡 0ms”，在 `playbackStateChanged` 后做一次 200ms 的 position 检测并轻微 `setPosition(1)` 触发时钟启动。
 
-- `src/ui/musicplaylist.h / src/ui/musicplaylist.cpp / musicplaylist.ui`  
+- `src/ui/musicplaylist.h / src/ui/musicplaylist.cpp / ui/musicplaylist.ui`  
   播放列表窗口：
   - 内部使用 `QScrollArea + QVBoxLayout` 管理多个 `SongUnit`。
   - 提供追加歌曲、更新某一项封面/标题/艺术家等接口。
   - 通过信号 `ChooseMusicpass(int id)` 告诉 `PlayerController` 用户选择了哪一首。
   - **关键点**：`showAnimated()/hideAnimated()` 用 opacity + pos 动画实现滑入/滑出；空列表显示占位文案。
 
-- `src/ui/songunit.h / src/ui/songunit.cpp / songunit.ui`  
+- `src/ui/songunit.h / src/ui/songunit.cpp / ui/songunit.ui`  
   播放列表中的一行（单曲项）：
   - 显示歌曲封面、名称、艺术家。
   - 鼠标悬停高亮，点击时发出 `ChooseMusic(int id)` 信号。
@@ -286,7 +286,7 @@ flowchart TD
   - 维护本地会话 `netease_session.json`，支持重启后恢复登录态。
   - **关键点**：对代理环境做隔离处理，兼容不同 pyncm 版本的二维码登录 API 命名。
 
-- `src/ui/moremenu.h / src/ui/moremenu.cpp / moremenu.ui`  
+- `src/ui/moremenu.h / src/ui/moremenu.cpp / ui/moremenu.ui`  
   更多菜单：
   - 运行期通过文件选择框追加本地音乐（主窗口接收 `addMusicClicked` 后调用 `PlayerController::AddLocalFiles()`）。
 
