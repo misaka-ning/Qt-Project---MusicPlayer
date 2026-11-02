@@ -210,11 +210,11 @@ flowchart TD
   - **本地播放数据**：`playlist.json`（播放列表、元数据状态、云歌曲标识）
   - **封面缓存**：`Metadata/<key>.png`（URL key 化存储，减少重复拉取）
   - **云歌词缓存**：`CloudLyrics/<songId>.lrc`
-  - **后端会话**：`python/server/netease_session.json`（网易云登录态恢复）
+  - **后端会话**：用户数据目录中的 `netease_session.json`（网易云登录态恢复）
   - **原子写入策略**：关键清单文件采用安全写入，降低异常退出导致的数据损坏风险
 
 - **构建与运行**
-  - **构建系统**：`CMake >= 3.16`（启用 `AUTOUIC` / `AUTOMOC` / `AUTORCC`）
+  - **构建系统**：`CMake >= 3.21.1`（启用 `AUTOUIC` / `AUTOMOC` / `AUTORCC`）
   - **Qt 链接模块**：`Qt6::Widgets`、`Qt6::Multimedia`、`Qt6::Network`
   - **编译器要求**：任意支持 C++17 的工具链（MSVC / Clang / GCC / MinGW）
   - **部署形态**：本地双进程（Qt GUI 进程 + Python API 进程）
@@ -251,9 +251,9 @@ flowchart TD
   - **统一响应模型**：通过 `ResponseFactory` 保持 `code/message/data` 结构一致，降低 Qt 端解析复杂度。
 
 - **本地持久化与运行约束**
-  - 会话文件：`python/server/netease_session.json`
+  - 会话文件：用户数据目录中的 `netease_session.json`
   - 默认监听：`127.0.0.1:8000`
-  - 建议：固定工作目录启动后端，避免会话文件路径变化导致“已登录状态丢失”。
+  - 路径不依赖工作目录；配置与启动命令见下方。
 
 ---
 
@@ -352,8 +352,8 @@ flowchart TD
 
 ## 环境与依赖
 
-- **Qt 版本**：Qt 6.8.3（Qt Widgets / Qt Multimedia / Qt Network）
-- **构建系统**：CMake（最低 3.16；可搭配 Ninja 或 Visual Studio 生成器）
+- **Qt 版本**：Qt 6.8.3 起（Qt Widgets / Qt Multimedia / Qt Network），CI 固定验证 6.8.3。Qt5 不受支持：客户端使用 Qt6 的 `QAudioOutput`、`QMediaPlayer::setSource` 和 `QStringDecoder`。
+- **构建系统**：CMake（最低 3.21.1；可搭配 Ninja 或 Visual Studio 生成器）
 - **编译器**：任意支持 C++17 的编译器（例如 MSVC / Clang / GCC / MinGW）
 - **Python（云功能必需）**：Python 3.9+，建议虚拟环境
 - **Python 依赖（云功能）**：`fastapi`、`uvicorn`、`pyncm`（见 `python/server/requirements.txt`）
@@ -367,14 +367,19 @@ flowchart TD
 1. **（可选）启动本地云服务（用于云搜索/网易云登录）**
 
    ```bash
-   cd python/server
-   pip install -r requirements.txt
-   python main.py
-   # 或
-   uvicorn main:app --host 127.0.0.1 --port 8000
+   # 从仓库根目录创建环境（Windows 使用 .venv\Scripts\python.exe）
+   python3 -m venv .venv
+   .venv/bin/python -m pip install -r python/server/requirements.txt
+   .venv/bin/python -m uvicorn python.server.main:app --host 127.0.0.1 --port 8000
+   # 从任意工作目录启动（替换为实际绝对路径）
+   /path/to/repo/.venv/bin/python /path/to/repo/python/server/main.py
+   # 或：/path/to/repo/.venv/bin/python -m uvicorn main:app --app-dir /path/to/repo/python/server
    ```
 
-   - 默认监听 `127.0.0.1:8000`，Qt 客户端通过该地址访问云接口。
+   - 默认监听 `127.0.0.1:8000`，Qt 客户端通过该地址访问云接口；`GET /health` 应返回 `{"status":"ok"}`。
+   - 后端默认数据目录：Linux `$XDG_DATA_HOME/MusicPlayer`（未设置时为 `~/.local/share/MusicPlayer`），macOS `~/Library/Application Support/MusicPlayer`，Windows `%LOCALAPPDATA%\MusicPlayer`。
+   - 可在启动前设置 `MUSICPLAYER_DATA_DIR` 为绝对路径（例如 `export MUSICPLAYER_DATA_DIR=/tmp/musicplayer-data`，PowerShell：`$env:MUSICPLAYER_DATA_DIR="C:\Users\you\MusicPlayerData"`）。日志 `server.log` 和会话 `netease_session.json` 都写入该目录；目录按需创建。持久化失败在服务终端输出无凭据警告，服务仍可运行，但登录态可能无法跨重启保留。
+   - 不自动读取仓库中旧会话，需重新登录；请勿提交会话或日志。已有 Git 历史不会因此清除。
    - 不启服务时，本地音乐播放仍可用，但云搜索/云播放/网易云登录不可用。
 
 2. **准备音乐文件（本地播放）**
@@ -389,12 +394,22 @@ flowchart TD
 
    ```bash
    # 在项目根目录（包含 CMakeLists.txt）下
-   mkdir build
-   cd build
-
-   cmake -G "Ninja" ..
-   cmake --build .
+   # Qt 官方安装器选择 Desktop Qt 6.8.3 和 Qt Multimedia。
+   # Linux 最小系统依赖（Ubuntu 24.04）：
+   # sudo apt-get install build-essential cmake ninja-build libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libpulse-dev
+   cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/path/to/Qt/6.8.3/gcc_64
+   cmake --build build --parallel 2
+   ./build/MusicPlayer
    ```
 
 > 说明：运行时会以 **可执行文件所在目录** 作为数据目录（`MusicList/`、`playlist.json`、`Metadata/` 均在该目录下创建/读取）。在 Windows 下，通常是 `build/<config>/` 目录中的 `MusicPlayer.exe` 所在位置。
 
+
+### 无账号回归验证
+
+```bash
+.venv/bin/python -m pip install -r python/server/requirements-test.txt
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v
+```
+
+测试使用临时数据目录、模拟登录上游，覆盖真实本地 HTTP 启动、不同工作目录、会话读写/删除、损坏文件和写入失败，不需要账号或云端凭据。CI 在 Linux 执行 Qt 6.8.3 Release 干净构建及 Python 3.9/3.12 后端测试。Windows/macOS 桌面运行、实际音频设备/编解码器与真实网易云接口需在对应环境另行验证。

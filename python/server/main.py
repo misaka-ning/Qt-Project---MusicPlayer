@@ -8,7 +8,7 @@
 
 搜索：直连 music.163.com/api/cloudsearch/pc（含 fee、st，与 privileges 对齐）。
 播放地址：apis.track.GetTrackAudio；无 URL 时按详情 fee/st 返回 HTTP 200 + code 403。
-登录：pyncm 会话写入其默认存储；请在固定工作目录下启动本服务，以免登录态丢失。
+登录：会话和日志保存在用户数据目录，可通过 MUSICPLAYER_DATA_DIR 覆盖。
 
 依赖：pip install -r requirements.txt
 运行：python main.py 或 uvicorn main:app --host 127.0.0.1 --port 8000
@@ -17,13 +17,16 @@
 from __future__ import annotations
 
 import json
+import logging
+import tempfile
+from pathlib import Path
 import os
 import time
 from contextlib import contextmanager
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Union
 
 from fastapi import FastAPI, Query, Request
@@ -33,9 +36,22 @@ from pydantic import BaseModel, Field
 from pyncm import apis
 from pyncm.apis import login as ncm_login
 from pyncm.apis.exception import LoginFailedException
-from config import ServerRuntimeConfig
-from helpers.response_guards import extract_payload_message, is_success_payload
-from utils.session_utils import extract_music_u_from_payload
+if __package__:
+    from .config import ServerRuntimeConfig, user_data_dir
+    from .helpers.response_guards import extract_payload_message, is_success_payload
+    from .utils.session_utils import extract_music_u_from_payload
+else:
+    from config import ServerRuntimeConfig, user_data_dir
+    from helpers.response_guards import extract_payload_message, is_success_payload
+    from utils.session_utils import extract_music_u_from_payload
+
+
+logger = logging.getLogger("musicplayer.persistence")
+
+
+def persistence_warning(operation: str) -> None:
+    # Never include exceptions, paths, upstream payloads or credentials.
+    logger.warning("MusicPlayer persistence %s failed; check data directory permissions and file format.", operation)
 
 
 @dataclass(frozen=True)
@@ -50,8 +66,15 @@ class AppConfig:
         "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     )
     referer: str = "https://music.163.com/"
-    debug_log_path: str = r"D:\Qt\MusicPlayer\debug-502184.log"
-    session_file: str = os.path.join(os.path.dirname(__file__), "netease_session.json")
+    data_dir: Path = field(default_factory=user_data_dir)
+
+    @property
+    def debug_log_path(self) -> Path:
+        return self.data_dir / "server.log"
+
+    @property
+    def session_file(self) -> Path:
+        return self.data_dir / "netease_session.json"
 
 
 class ResponseFactory:
@@ -130,15 +153,24 @@ class SessionRepository:
             payload = session.dump() if session is not None else {}
             music_u = extract_music_u_from_payload(payload) if isinstance(payload, dict) else ""
             out = {"music_u": music_u, "session_dump": payload}
-            with open(self._config.session_file, "w", encoding="utf-8") as f:
-                json.dump(out, f, ensure_ascii=False)
+            self._config.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            temporary = None
+            try:
+                with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=self._config.data_dir,
+                                                 prefix=".session-", delete=False) as f:
+                    temporary = Path(f.name)
+                    json.dump(out, f, ensure_ascii=False)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(temporary, self._config.session_file)
+            finally:
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
         except Exception:
-            pass
+            persistence_warning("session save")
 
     def load(self) -> None:
-        """启动时恢复上次登录会话，失败时静默降级为未登录。"""
-        if not os.path.exists(self._config.session_file):
-            return
+        """启动时恢复上次登录会话，失败时提示并降级为未登录。"""
         try:
             with open(self._config.session_file, "r", encoding="utf-8") as f:
                 raw = json.load(f)
@@ -166,16 +198,17 @@ class SessionRepository:
 
             # 兜底：尝试恢复完整会话
             if payload:
-                call_pyncm_no_proxy(ncm_login.WriteLoginInfo, payload)
+                ncm_login.GetCurrentSession().load(payload)
+        except FileNotFoundError:
+            return
         except Exception:
-            pass
+            persistence_warning("session load")
 
     def clear(self) -> None:
         try:
-            if os.path.exists(self._config.session_file):
-                os.remove(self._config.session_file)
+            self._config.session_file.unlink(missing_ok=True)
         except Exception:
-            pass
+            persistence_warning("session clear")
 
 
 class NeteaseHttpClient:
@@ -296,20 +329,18 @@ class NeteaseGateway:
 
 
 class DebugLogger:
-    """轻量日志器，保留原 agent log 行为。"""
+    """本地诊断日志，不记录登录凭据。"""
 
     def __init__(self, config: AppConfig) -> None:
         self._config = config
 
     def write(self, location: str, message: str, hypothesis_id: str, data: dict[str, Any]) -> None:
-        # region agent log
         try:
+            self._config.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
             with open(self._config.debug_log_path, "a", encoding="utf-8") as f:
                 f.write(
                     json.dumps(
                         {
-                            "sessionId": "502184",
-                            "runId": "pre-fix",
                             "hypothesisId": hypothesis_id,
                             "location": location,
                             "message": message,
@@ -321,8 +352,7 @@ class DebugLogger:
                     + "\n"
                 )
         except Exception:
-            pass
-        # endregion
+            persistence_warning("log write")
 
 
 class MusicService:
@@ -644,7 +674,7 @@ class QrAuthService:
             "python/server/main.py:auth_qr_url",
             "qr url returned",
             "H1",
-            {"qrUrl": url[:160], "qrUrl_len": len(url)},
+            {"qrUrl_len": len(url)},
         )
         return ResponseFactory.ok({"unikey": key, "qrUrl": url})
 

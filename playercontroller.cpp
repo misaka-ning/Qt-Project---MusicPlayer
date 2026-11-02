@@ -38,21 +38,13 @@ PlayerController::PlayerController(QObject *parent)
     m_player->setAudioOutput(m_audioOutput);
 
     // 部分音频在 play() 后会停留在 0ms 不前进（直到发生一次 seek），这里做一次“卡住检测”自动唤醒。
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     connect(m_player, &QMediaPlayer::playbackStateChanged, this, [this](QMediaPlayer::PlaybackState state) {
-#else
-    connect(m_player, QOverload<QMediaPlayer::State>::of(&QMediaPlayer::stateChanged), this, [this](QMediaPlayer::State state) {
-#endif
         if (state != QMediaPlayer::PlayingState) return;
 
         const int token = ++m_playToken;
         QTimer::singleShot(AppConstants::Playback::PlaybackStallProbeDelayMs, this, [this, token]() {
             if (token != m_playToken) return; // 已经切换了歌曲/状态，丢弃
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             if (m_player->playbackState() != QMediaPlayer::PlayingState) return;
-#else
-            if (m_player->state() != QMediaPlayer::PlayingState) return;
-#endif
             if (m_player->mediaStatus() != QMediaPlayer::LoadedMedia &&
                 m_player->mediaStatus() != QMediaPlayer::BufferedMedia &&
                 m_player->mediaStatus() != QMediaPlayer::StalledMedia)
@@ -510,15 +502,7 @@ void PlayerController::PlayPrevSong()
 {
     if (!m_musicplaylist || m_musicplaylist->isempty()) return;
     if (!ensureValidPlayIndex()) return;
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (m_player->isPlaying()) m_autoplay = true;
-#else
-    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
-#endif
-#else
-    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
-#endif
 
     // 单曲循环不需要换源文件
     if(m_nextmode == Repeat_Play)
@@ -559,15 +543,7 @@ void PlayerController::PlayNextSong()
 {
     if (!m_musicplaylist || m_musicplaylist->isempty()) return;
     if (!ensureValidPlayIndex()) return;
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (m_player->isPlaying()) m_autoplay = true;
-#else
-    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
-#endif
-#else
-    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
-#endif
 
     // 单曲循环不需要换源文件
     if(m_nextmode == Repeat_Play)
@@ -655,15 +631,7 @@ void PlayerController::OnChooseMusic(int id)
     {
         m_playnum = id;
     }
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (m_player->isPlaying()) m_autoplay = true;
-#else
-    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
-#endif
-#else
-    if (m_player->state() == QMediaPlayer::PlayingState) m_autoplay = true;
-#endif
     PlaySong();
 }
 

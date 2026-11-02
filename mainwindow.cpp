@@ -537,7 +537,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     // 音乐播放结束信号槽
     connect(player, &QMediaPlayer::playbackStateChanged, this, &MainWindow::StateChange);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     connect(player, &QMediaPlayer::errorOccurred, this, [this, player](QMediaPlayer::Error error, const QString& errorString) {
         Q_UNUSED(error);
         const int currentIndex = m_playerController ? m_playerController->GetCurrentIndex() : -1;
@@ -565,16 +564,6 @@ MainWindow::MainWindow(QWidget *parent)
                                                        : err),
                                  5000);
     });
-#else
-    connect(player, QOverload<QMediaPlayer::Error>::of(&QMediaPlayer::error), this, [this, player](QMediaPlayer::Error error) {
-        Q_UNUSED(error);
-        const QString err = player ? player->errorString() : QString();
-        statusBar()->showMessage(QStringLiteral("播放失败：%1").arg(err.trimmed().isEmpty()
-                                                       ? QStringLiteral("未知错误")
-                                                       : err),
-                                 5000);
-    });
-#endif
 
     // 进度条相关槽函数
     connect(player, &QMediaPlayer::positionChanged, this, &MainWindow::updateSliderPosition);
