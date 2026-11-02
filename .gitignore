@@ -12,3 +12,10 @@ build/
 *.dll
 *.a
 *.so
+# Python environment and runtime data
+__pycache__/
+*.py[cod]
+.venv/
+*.log
+netease_session.json
+.session-*
